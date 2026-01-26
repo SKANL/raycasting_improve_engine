@@ -5,6 +5,7 @@ import 'package:bloc/bloc.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:raycasting_game/core/logging/log_service.dart';
 import 'package:raycasting_game/gen/assets.gen.dart';
 
 class AppBlocObserver extends BlocObserver {
@@ -22,8 +23,10 @@ class AppBlocObserver extends BlocObserver {
 }
 
 Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
+  LogService.init();
+
   FlutterError.onError = (details) {
-    log(details.exceptionAsString(), stackTrace: details.stack);
+    LogService.error('FLUTTER', 'ON_ERROR', details.exception, details.stack);
   };
 
   Bloc.observer = AppBlocObserver();

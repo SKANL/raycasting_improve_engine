@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:raycasting_game/features/game/view/game_page.dart';
 import 'package:raycasting_game/l10n/l10n.dart';
 
 class App extends StatelessWidget {
@@ -26,11 +27,7 @@ class AppView extends StatelessWidget {
       ),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const Scaffold(
-        body: Center(
-          child: Text('Raycasting Engine Initialization...'),
-        ),
-      ),
+      home: const GamePage(),
     );
   }
 }
