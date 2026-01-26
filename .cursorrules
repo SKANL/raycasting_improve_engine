@@ -1,0 +1,29 @@
+
+# Raycasting Game - AI Rules
+> **CRITICAL**: This project has strict context rules. READ `.agent/AGENTS.md` before doing anything complex.
+
+## 1. Context Awareness
+- **Master Index**: `AGENTS.md` (Root).
+- **Architecture**: `lib/features/` (Feature-First) + `flutter_bloc`.
+- **Engine**: Flame + `flutter_shaders` (Raycasting runs on GPU).
+
+## 2. Coding Standards
+- **Linter**: `very_good_analysis`.
+- **State Management**: `Bloc` / `Cubit` ONLY. No `GetX` / `Provider`.
+- **Files**: `snake_case`. Classes: `PascalCase`.
+- **Comments**: Public APIs must have `///` docs explaining *WHY*.
+- **Async**: Avoid `await` in `update(dt)` loops.
+
+## 3. Workflow
+- **Dependencies**: Use `flutter pub add [package]` ONLY if whitelisted in `.agent/dependencies.agents.md`.
+- **Assets**: NO external PNGs for walls/enemies. Procedural only (see `.agent/assets.agents.md` & `.agent/procedural_entities.agents.md`).
+- **Tests**: `flutter test` must pass.
+
+## 4. Specific Mechanics
+- **Raycasting**: DDA Algorithm in Fragment Shader. (See `.agent/engine.agents.md`).
+- **Input**: Abstracted via `InputBloc`. (See `.agent/input_system.agents.md`).
+
+## 5. Agent Instructions
+- Always verify your plan against `math_physics.agents.md`.
+- If you edit a file, run `flutter analyze` to ensure no lint regressions.
+- Move unused template code to `./legacy/`.
