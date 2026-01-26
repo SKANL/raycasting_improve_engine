@@ -1,0 +1,31 @@
+Analyzing raycasting_game...                                    
+
+   info - Use the constant 'Offset.zero' rather than a constructor returning the same object - lib\features\core\input\bloc\input_state.dart:9:23 - use_named_constants
+   info - Use 'const' with the constructor to improve performance - lib\features\core\world\bloc\world_bloc.dart:69:24 - prefer_const_constructors
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:71:28 - avoid_redundant_argument_values
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:93:32 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:94:36 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:95:34 - unnecessary_null_comparison
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:234:5 - prefer_final_locals
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\systems\ai_system.dart:107:27 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:51:14 - prefer_int_literals
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:50:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:52:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:76:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:78:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:95:45 - deprecated_member_use
+   info - To-do comment doesn't follow the Flutter style - lib\features\game\view\widgets\game_hud.dart:105:33 - flutter_style_todos
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:112:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:141:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:145:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:146:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:178:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:179:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:237:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:278:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:296:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:298:48 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:48:15 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:49:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:58:12 - prefer_int_literals
+

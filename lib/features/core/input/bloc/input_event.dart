@@ -26,10 +26,7 @@ final class ActionEnded extends InputEvent {
   List<Object?> get props => [action];
 }
 
-/// Triggered to update analog values (e.g., joystick move, mouse look).
-///
-/// Note: For high-frequency mouse look, we might bypass Bloc and go
-/// direct to a controller, but for now we stick to unified arch.
+/// Triggered to update analog values (e.g., joystick move).
 final class AnalogInputChanged extends InputEvent {
   const AnalogInputChanged({this.axisX = 0.0, this.axisY = 0.0});
 

@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart' show Offset;
 import 'package:raycasting_game/features/core/input/models/game_action.dart';
 
 part 'input_event.dart';

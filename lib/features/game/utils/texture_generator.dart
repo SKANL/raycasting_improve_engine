@@ -152,6 +152,20 @@ class TextureGenerator {
             b = 0;
             a = 255;
           }
+        } else if (slot == 2) {
+          // Muzzle Flash / Spark: Yellow/Orange burst
+          const cx = 16.0;
+          const cy = 16.0;
+          final dx = cx - lx;
+          final dy = cy - ly;
+          final distSq = dx * dx + dy * dy;
+          if (distSq < 10 * 10) {
+            final dist = math.sqrt(distSq);
+            r = 255;
+            g = (200 - (dist * 15)).toInt().clamp(0, 255);
+            b = 50;
+            a = (255 * (1.0 - dist / 10.0)).toInt().clamp(0, 255);
+          }
         }
 
         buffer[index] = r;

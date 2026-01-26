@@ -24,16 +24,34 @@ class RaycastRenderer extends PositionComponent
   double _time = 0;
   WorldState _latestState = const WorldState();
   final ParticleSystem _particleSystem = ParticleSystem();
+  bool _hasLoggedRender = false;
 
   @override
   Future<void> onLoad() async {
     await ShaderManager.load();
     _paint = Paint();
+
+    // Set size to match game viewport
+    size = game.size.clone();
+
+    LogService.info('RENDER', 'RENDERER_LOADED', {
+      'size': '${size.x}x${size.y}',
+    });
   }
 
   @override
   void onNewState(WorldState state) {
     _latestState = state;
+  }
+
+  void spawnMuzzleFlash(v64.Vector2 position, double direction) {
+    _particleSystem.emit(
+      position: position,
+      count: 15,
+      speed: 3.0,
+      life: 0.15,
+      textureRect: const Rect.fromLTWH(0, 32, 32, 32),
+    );
   }
 
   void spawnParticles(v64.Vector2 pos) {
@@ -65,6 +83,10 @@ class RaycastRenderer extends PositionComponent
       final atlasTexture = _latestState.textureAtlas;
 
       if (mapTexture == null || atlasTexture == null) {
+        LogService.warning('RENDER', 'MISSING_TEXTURES', {
+          'mapTexture': mapTexture != null,
+          'atlasTexture': atlasTexture != null,
+        });
         return;
       }
 
@@ -105,6 +127,16 @@ class RaycastRenderer extends PositionComponent
 
       _paint.shader = shader;
       canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), _paint);
+
+      // Debug: Log successful render once
+      if (!_hasLoggedRender) {
+        LogService.info('RENDER', 'FIRST_RENDER', {
+          'canvasSize': '${size.x}x${size.y}',
+          'playerPos': '${playerPos.x},${playerPos.y}',
+          'lights': activeLights,
+        });
+        _hasLoggedRender = true;
+      }
 
       // --- Sprite Rendering (Entities + Particles) ---
       final renderables = <_RenderableSprite>[];

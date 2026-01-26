@@ -14,6 +14,7 @@ import 'package:raycasting_game/features/core/world/models/game_map.dart';
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
 import 'package:raycasting_game/features/game/render/raycast_renderer.dart';
 import 'package:raycasting_game/features/game/render/shader_manager.dart';
+import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
 import 'package:vector_math/vector_math_64.dart' as v64;
 
 class RaycastingGame extends FlameGame with KeyboardEvents {
@@ -22,23 +23,28 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     required this.worldBloc,
     required this.inputBloc,
     required this.perspectiveBloc,
+    required this.weaponBloc,
   }) : super();
 
   final GameBloc gameBloc;
   final WorldBloc worldBloc;
   final InputBloc inputBloc;
   final PerspectiveBloc perspectiveBloc;
+  final WeaponBloc weaponBloc;
+
+  RaycastRenderer? _renderer;
 
   @override
   Future<void> onLoad() async {
     await ShaderManager.load();
     await super.onLoad();
 
-    // Initialize World if not already?
-    // Usually via Bloc but we can do it here for now to be sure map exists.
+    // Initialize World
     worldBloc.add(const WorldInitialized(width: 32, height: 32));
 
-    // We inject blocs into the Flame component tree
+    final renderer = RaycastRenderer();
+    _renderer = renderer;
+
     await add(
       FlameBlocProvider<GameBloc, GameState>.value(
         value: gameBloc,
@@ -49,7 +55,12 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
               FlameBlocProvider<PerspectiveBloc, PerspectiveState>.value(
                 value: perspectiveBloc,
                 children: [
-                  RaycastRenderer(),
+                  FlameBlocProvider<WeaponBloc, WeaponState>.value(
+                    value: weaponBloc,
+                    children: [
+                      renderer,
+                    ],
+                  ),
                 ],
               ),
             ],
@@ -57,6 +68,10 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
         ],
       ),
     );
+  }
+
+  void _spawnMuzzleFlash(v64.Vector2 position, double direction) {
+    _renderer?.spawnMuzzleFlash(position, direction);
   }
 
   @override
@@ -69,59 +84,64 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   void _processInput(double dt) {
     final inputState = inputBloc.state;
     var moveStep = 0.0;
+    var strafeStep = 0.0;
     var rotStep = 0.0;
 
-    if (inputState.isPressed(GameAction.moveForward)) {
-      moveStep += 1.0;
-    }
-    if (inputState.isPressed(GameAction.moveBackward)) {
-      moveStep -= 1.0;
-    }
-    if (inputState.isPressed(GameAction.strafeLeft)) {
-      rotStep -= 1.0;
-    }
-    if (inputState.isPressed(GameAction.strafeRight)) {
-      rotStep += 1.0;
-    }
-    if (inputState.isPressed(GameAction.lookLeft)) {
-      rotStep -= 1.0;
-    }
-    if (inputState.isPressed(GameAction.lookRight)) {
-      rotStep += 1.0;
+    // Movement
+    if (inputState.isPressed(GameAction.moveForward)) moveStep += 1.0;
+    if (inputState.isPressed(GameAction.moveBackward)) moveStep -= 1.0;
+    if (inputState.isPressed(GameAction.strafeLeft)) strafeStep -= 1.0;
+    if (inputState.isPressed(GameAction.strafeRight)) strafeStep += 1.0;
+
+    // Rotation
+    if (inputState.isPressed(GameAction.lookLeft)) rotStep -= 1.0;
+    if (inputState.isPressed(GameAction.lookRight)) rotStep += 1.0;
+
+    // Handle shooting
+    if (inputState.isPressed(GameAction.fire)) {
+      weaponBloc.add(const WeaponFired());
+      if (weaponBloc.state.canFire) {
+        final playerPos = worldBloc.state.effectivePosition;
+        final playerDir = worldBloc.state.playerDirection;
+        final flashPos =
+            playerPos +
+            v64.Vector2(math.cos(playerDir) * 0.5, math.sin(playerDir) * 0.5);
+        _spawnMuzzleFlash(flashPos, playerDir);
+      }
     }
 
-    if (moveStep != 0 || rotStep != 0) {
+    if (inputState.isPressed(GameAction.reload)) {
+      weaponBloc.add(const WeaponReloaded());
+    }
+
+    if (moveStep != 0 || strafeStep != 0 || rotStep != 0) {
       final currentRot = worldBloc.state.playerDirection;
       final currentPos = worldBloc.state.effectivePosition;
 
-      // Adjust speed by dt for frame-rate independence
-      const moveSpeed = 3.0; // Units per second
-      const rotSpeed = 2.0; // Radians per second
+      const moveSpeed = 4.0;
+      const rotSpeed = 2.5;
 
       final newRot = currentRot + (rotStep * rotSpeed * dt);
       final dirX = math.cos(newRot);
       final dirY = math.sin(newRot);
 
       final moveVec = v64.Vector2(dirX, dirY) * (moveStep * moveSpeed * dt);
+      final strafeVec =
+          v64.Vector2(-dirY, dirX) * (strafeStep * moveSpeed * dt);
+      final totalMove = moveVec + strafeVec;
 
-      // Collision Detection
       final map = worldBloc.state.map;
       var finalPos = currentPos.clone();
 
       if (map != null) {
-        final nextX = currentPos.x + moveVec.x;
-        final margin = 0.2 * (moveVec.x.sign);
-        if (!_isSolid(map, nextX + margin, currentPos.y)) {
+        final nextX = currentPos.x + totalMove.x;
+        if (!_isSolid(map, nextX + 0.2 * totalMove.x.sign, currentPos.y))
           finalPos.x = nextX;
-        }
-
-        final nextY = currentPos.y + moveVec.y;
-        final marginY = 0.2 * (moveVec.y.sign);
-        if (!_isSolid(map, finalPos.x, nextY + marginY)) {
+        final nextY = currentPos.y + totalMove.y;
+        if (!_isSolid(map, finalPos.x, nextY + 0.2 * totalMove.y.sign))
           finalPos.y = nextY;
-        }
       } else {
-        finalPos = currentPos + moveVec;
+        finalPos = currentPos + totalMove;
       }
 
       worldBloc.add(PlayerMoved(position: finalPos, direction: newRot));
@@ -137,20 +157,17 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     if (action == null) return KeyEventResult.ignored;
 
     if (event is KeyDownEvent) {
-      if (action == GameAction.togglePerspective) {
+      if (action == GameAction.togglePerspective)
         perspectiveBloc.add(const PerspectiveToggled());
-      }
       inputBloc.add(ActionStarted(action));
       return KeyEventResult.handled;
     } else if (event is KeyUpEvent) {
       inputBloc.add(ActionEnded(action));
       return KeyEventResult.handled;
     }
-
     return KeyEventResult.ignored;
   }
 
-  bool _isSolid(GameMap map, double x, double y) {
-    return map.getCell(x.floor(), y.floor()).isSolid;
-  }
+  bool _isSolid(GameMap map, double x, double y) =>
+      map.getCell(x.floor(), y.floor()).isSolid;
 }

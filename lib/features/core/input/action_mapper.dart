@@ -4,11 +4,11 @@ import 'package:raycasting_game/features/core/input/models/game_action.dart';
 /// Helper class to map physical keys to semantic actions.
 class ActionMapper {
   static final Map<LogicalKeyboardKey, GameAction> defaultKeyMap = {
-    // Movement
+    // Movement & Looking
     LogicalKeyboardKey.keyW: GameAction.moveForward,
     LogicalKeyboardKey.keyS: GameAction.moveBackward,
-    LogicalKeyboardKey.keyA: GameAction.strafeLeft,
-    LogicalKeyboardKey.keyD: GameAction.strafeRight,
+    LogicalKeyboardKey.keyA: GameAction.lookLeft,
+    LogicalKeyboardKey.keyD: GameAction.lookRight,
     LogicalKeyboardKey.arrowUp: GameAction.moveForward,
     LogicalKeyboardKey.arrowDown: GameAction.moveBackward,
     LogicalKeyboardKey.arrowLeft: GameAction.lookLeft,

@@ -15,6 +15,12 @@ enum GameAction {
   /// Move right (strafe) relative to camera.
   strafeRight,
 
+  /// Turn left (rotate player).
+  turnLeft,
+
+  /// Turn right (rotate player).
+  turnRight,
+
   // --- Camera ---
   /// Rotate camera left.
   lookLeft,
