@@ -27,6 +27,7 @@ class ShaderManager {
     required double playerDir,
     required double fov,
     required double pitch,
+    required double fogDistance,
     required List<double> lights,
     required int lightCount,
     required ui.Image mapTexture,
@@ -54,16 +55,19 @@ class ShaderManager {
     shader.setFloat(10, 0.3);
     shader.setFloat(11, 0); // Padding
 
-    // Set Lighting Params (vec4) - Indices 12, 13, 14, 15
-    // x = lightCount
-    shader.setFloat(12, lightCount.toDouble());
-    shader.setFloat(13, 0);
+    // Set Fog Distance (float) - Index 12
+    shader.setFloat(12, fogDistance);
+
+    // Set Lighting Params (vec4) - Indices 13, 14, 15, 16
+    // x = uLightCount
+    shader.setFloat(13, lightCount.toDouble());
     shader.setFloat(14, 0);
     shader.setFloat(15, 0);
+    shader.setFloat(16, 0);
 
-    // Set Lights (vec4 array) - Starts at 16
+    // Set Lights (vec4 array) - Starts at 17
     for (var i = 0; i < lights.length; i++) {
-      shader.setFloat(16 + i, lights[i]);
+      shader.setFloat(17 + i, lights[i]);
     }
 
     shader.setImageSampler(0, mapTexture);

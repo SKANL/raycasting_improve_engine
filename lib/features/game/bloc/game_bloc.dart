@@ -5,9 +5,23 @@ import 'package:raycasting_game/features/game/bloc/bloc.dart';
 class GameBloc extends Bloc<GameEvent, GameState> {
   GameBloc({required this.worldBloc}) : super(const GameState()) {
     on<GameStarted>(_onGameStarted);
+    on<PlayerDamaged>(_onPlayerDamaged);
   }
 
   final WorldBloc worldBloc;
+
+  void _onPlayerDamaged(PlayerDamaged event, Emitter<GameState> emit) {
+    var newHealth = state.health - event.amount;
+    if (newHealth < 0) newHealth = 0;
+
+    // Check game over
+    var status = state.status;
+    if (newHealth == 0) {
+      status = GameStatus.gameOver;
+    }
+
+    emit(state.copyWith(health: newHealth, status: status));
+  }
 
   void _onGameStarted(
     GameStarted event,

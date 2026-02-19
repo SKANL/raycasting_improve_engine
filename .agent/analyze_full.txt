@@ -1,0 +1,93 @@
+Analyzing raycasting_game...                                    
+
+   info - Constructors in '@immutable' classes should be declared as 'const' - lib\features\core\ecs\components\animation_component.dart:21:3 - prefer_const_constructors_in_immutables
+warning - Unused import: 'package:flutter/material.dart' - lib\features\core\input\bloc\input_bloc.dart:3:8 - unused_import
+   info - Sort directive sections alphabetically - lib\features\core\world\bloc\world_bloc.dart:17:1 - directives_ordering
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:72:5 - prefer_final_locals
+   info - Use 'const' with the constructor to improve performance - lib\features\core\world\bloc\world_bloc.dart:93:18 - prefer_const_constructors
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:128:17 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:141:26 - avoid_redundant_argument_values
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:166:32 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:167:36 - unnecessary_null_comparison
+warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:168:34 - unnecessary_null_comparison
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:263:7 - prefer_final_locals
+   info - Sort directive sections alphabetically - lib\features\game\ai\systems\ai_system.dart:8:1 - directives_ordering
+   info - Statements in an if should be enclosed in a block - lib\features\game\ai\systems\ai_system.dart:74:7 - curly_braces_in_flow_control_structures
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:112:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:156:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:192:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:203:9 - unnecessary_breaks
+   info - Invalid use of 'default' member in a switch - lib\features\game\ai\systems\ai_system.dart:205:7 - no_default_cases
+   info - Unnecessary type annotation on a local variable - lib\features\game\ai\systems\ai_system.dart:211:7 - omit_local_variable_types
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:216:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:219:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:222:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:225:11 - unnecessary_breaks
+   info - Invalid use of 'default' member in a switch - lib\features\game\ai\systems\ai_system.dart:226:9 - no_default_cases
+   info - Sort directive sections alphabetically - lib\features\game\raycasting_game.dart:18:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\raycasting_game.dart:19:1 - directives_ordering
+   info - The import of 'package:raycasting_game/features/game/bloc/game_event.dart' is unnecessary because all of the used elements are also provided by the import of 'package:raycasting_game/features/game/bloc/bloc.dart' - lib\features\game\raycasting_game.dart:19:8 - unnecessary_import
+   info - Sort directive sections alphabetically - lib\features\game\raycasting_game.dart:24:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\raycasting_game.dart:26:1 - directives_ordering
+   info - The import of 'package:raycasting_game/features/game/bloc/game_state.dart' is unnecessary because all of the used elements are also provided by the import of 'package:raycasting_game/features/game/bloc/bloc.dart' - lib\features\game\raycasting_game.dart:26:8 - unnecessary_import
+   info - 'Future'-returning calls in a non-'async' function - lib\features\game\raycasting_game.dart:87:9 - discarded_futures
+   info - Unnecessary use of a 'double' literal - lib\features\game\raycasting_game.dart:151:21 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\raycasting_game.dart:152:21 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\raycasting_game.dart:205:17 - avoid_redundant_argument_values
+   info - Statements in an if should be enclosed in a block - lib\features\game\raycasting_game.dart:222:9 - curly_braces_in_flow_control_structures
+   info - 'HasGameRef' is deprecated and shouldn't be used. Use HasGameReference instead. This mixin will be removed in a future version of Flame - lib\features\game\render\hud\damage_flash_component.dart:4:59 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\hud\damage_flash_component.dart:7:21 - prefer_int_literals
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\render\hud\damage_flash_component.dart:33:38 - deprecated_member_use
+   info - 'HasGameRef' is deprecated and shouldn't be used. Use HasGameReference instead. This mixin will be removed in a future version of Flame - lib\features\game\render\hud\game_over_overlay.dart:4:54 - deprecated_member_use
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\render\hud\game_over_overlay.dart:21:22 - avoid_redundant_argument_values
+   info - Sort directive sections alphabetically - lib\features\game\render\raycast_renderer.dart:14:1 - directives_ordering
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:52:14 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:123:22 - prefer_int_literals
+   info - Local variables should be final - lib\features\game\render\raycast_renderer.dart:154:11 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:154:11 - omit_local_variable_types
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:154:26 - prefer_int_literals
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:2:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:3:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:4:1 - directives_ordering
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:103:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:112:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:118:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:137:9 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:143:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:49:10 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:50:12 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:81:10 - omit_local_variable_types
+   info - Use 'isEven' rather than '% 2' - lib\features\game\utils\texture_generator.dart:83:26 - use_is_even_rather_than_modulo
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:85:12 - omit_local_variable_types
+   info - Local variables should be final - lib\features\game\utils\texture_generator.dart:86:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:86:9 - omit_local_variable_types
+   info - Local variables should be final - lib\features\game\utils\texture_generator.dart:87:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:87:9 - omit_local_variable_types
+   info - Local variables should be final - lib\features\game\utils\texture_generator.dart:88:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:88:9 - omit_local_variable_types
+   info - Local variables should be final - lib\features\game\utils\texture_generator.dart:89:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:89:9 - omit_local_variable_types
+   info - Local variables should be final - lib\features\game\utils\texture_generator.dart:90:9 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:90:9 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\utils\texture_generator.dart:119:10 - omit_local_variable_types
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:50:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:52:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:76:39 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:78:58 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:95:45 - deprecated_member_use
+   info - To-do comment doesn't follow the Flutter style - lib\features\game\view\widgets\game_hud.dart:105:33 - flutter_style_todos
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:112:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:141:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:145:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:146:33 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:178:47 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:179:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:237:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:278:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:296:29 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:298:48 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:48:15 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:49:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:58:12 - prefer_int_literals
+   info - 'Future'-returning calls in a non-'async' function - test\features\core\world\bloc\world_bloc_test.dart:18:17 - discarded_futures
+

@@ -28,6 +28,8 @@ class ParticleSystem {
     double direction = 0.0,
     double life = 0.5,
     Rect? textureRect,
+    Color? color,
+    double scale = 0.5,
   }) {
     textureRect ??= const Rect.fromLTWH(0, 0, 32, 32); // Default sprite
 
@@ -43,7 +45,8 @@ class ParticleSystem {
           velocity: vel,
           life: life * (0.8 + _rng.nextDouble() * 0.4),
           textureRect: textureRect,
-          scale: 0.5 + _rng.nextDouble() * 0.5,
+          scale: scale * (0.8 + _rng.nextDouble() * 0.4),
+          color: color ?? const Color(0xFFFFFFFF),
         ),
       );
     }

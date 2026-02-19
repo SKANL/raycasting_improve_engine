@@ -23,6 +23,7 @@ struct Light {
 };
 
 const int MAX_LIGHTS = 8;
+uniform float uFogDistance;
 uniform vec4 uLightingParams; // x = uLightCount, yzw = unused
 uniform vec4 uLightData[MAX_LIGHTS * 2]; 
 
@@ -38,6 +39,55 @@ const float MAP_SIZE = 32.0;
 const float TILE_SIZE = 32.0;
 const float ATLAS_SIZE = 128.0;
 const float TILES_PER_ROW = 4.0;
+
+// Shadow Casting using DDA
+float castShadow(vec2 start, vec2 end) {
+    vec2 dir = end - start;
+    float dist = length(dir);
+    if (dist < 0.1) return 1.0;
+    
+    dir /= dist;
+    
+    vec2 rayPos = start + dir * 0.1; // Nudge to avoid self-shadowing
+    vec2 mapPos = floor(rayPos);
+    
+    vec2 stepDir = sign(dir);
+    vec2 deltaDist = abs(1.0 / dir);
+    vec2 sideDist = (stepDir * 0.5 + 0.5 - fract(rayPos) * stepDir) * deltaDist;
+    // Fix for when rayPos is exactly on integer boundary if needed, but fract handles it reasonably.
+    // Actually standard DDA setup:
+    if (dir.x < 0.0) {
+        sideDist.x = (rayPos.x - mapPos.x) * deltaDist.x;
+    } else {
+        sideDist.x = (mapPos.x + 1.0 - rayPos.x) * deltaDist.x;
+    }
+    if (dir.y < 0.0) {
+        sideDist.y = (rayPos.y - mapPos.y) * deltaDist.y;
+    } else {
+        sideDist.y = (mapPos.y + 1.0 - rayPos.y) * deltaDist.y;
+    }
+    
+    for (int i = 0; i < 30; i++) {
+        if (length(mapPos + 0.5 - start) > dist) return 1.0; // Reached light
+        
+        // Check wall
+        vec2 mapUV = (mapPos + 0.5) / MAP_SIZE;
+        if (mapUV.x >= 0.0 && mapUV.x < 1.0 && mapUV.y >= 0.0 && mapUV.y < 1.0) {
+             vec4 cell = texture(uMap, mapUV);
+             if (cell.r * 255.0 > 0.5) return 0.0; // Hit wall
+        }
+
+        // Step
+        if (sideDist.x < sideDist.y) {
+            sideDist.x += deltaDist.x;
+            mapPos.x += stepDir.x;
+        } else {
+            sideDist.y += deltaDist.y;
+            mapPos.y += stepDir.y;
+        }
+    }
+    return 1.0;
+}
 
 void main() {
     vec2 pos = FlutterFragCoord().xy;
@@ -155,19 +205,6 @@ void main() {
              
              // Calculate world position of the specific wall pixel
              vec2 hitPos;
-             if (side == 0.0) {
-                 hitPos = vec2(wallX + mapPos.x, mapPos.y + wallX); // Approximate? No.
-                 // Correct logic:
-                 // if side==0 (North/South hit), x is changing, y is integer (mapPos.y or mapPos.y+1)
-                 // mapPos is the CELL integer coordinate.
-                 if (rayDir.x > 0) hitPos.x = mapPos.x; else hitPos.x = mapPos.x + 1.0; 
-                 hitPos.y = uPlayerPos.y + perpWallDist * rayDir.y;
-             } else {
-                 if (rayDir.y > 0) hitPos.y = mapPos.y; else hitPos.y = mapPos.y + 1.0;
-                 hitPos.x = uPlayerPos.x + perpWallDist * rayDir.x;
-             }
-             // Actually, 'wallX' calculated earlier IS the fractional part along the wall.
-             // We can reconstruct exact world pos.
              if (side == 0.0) { // Vert line (x constant)
                  hitPos.x = (stepDir.x > 0) ? mapPos.x : mapPos.x + 1.0;
                  hitPos.y = uPlayerPos.y + perpWallDist * rayDir.y;
@@ -175,6 +212,9 @@ void main() {
                  hitPos.y = (stepDir.y > 0) ? mapPos.y : mapPos.y + 1.0;
                  hitPos.x = uPlayerPos.x + perpWallDist * rayDir.x;
              }
+
+             // Offset hitPos slightly away from wall for shadow rays
+             vec2 shadowStart = hitPos + (uPlayerPos - hitPos) * 0.01;
 
              for (int i = 0; i < MAX_LIGHTS; i++) {
                  if (i >= int(uLightingParams.x)) break;
@@ -188,21 +228,94 @@ void main() {
                  
                  float dist = distance(hitPos, lightPos);
                  if (dist < radius) {
+                     float shadow = castShadow(shadowStart, lightPos);
                      float att = 1.0 - (dist / radius);
                      att = att * att; // Quadratic falloff look
-                     lighting += color * intensity * att;
+                     lighting += color * intensity * att * shadow;
                  }
              }
 
              // Directional shade for walls
              if (side == 1.0) lighting *= 0.7; 
              
-             fragColor = vec4(texColor.rgb * lighting, 1.0);
+             // Directional shade for walls
+             if (side == 1.0) lighting *= 0.7; 
+             
+             vec3 finalColor = texColor.rgb * lighting;
 
-        } else if (pos.y < drawStart) {
-             fragColor = vec4(0.1, 0.1, 0.1, 1.0); // Ceiling
+             // Apply Fog
+             float fogFactor = clamp(perpWallDist / uFogDistance, 0.0, 1.0);
+             // Use specific fog mix (e.g. darken towards black)
+             finalColor = mix(finalColor, vec3(0.0, 0.0, 0.0), fogFactor);
+
+             fragColor = vec4(finalColor, 1.0);
+
         } else {
-             fragColor = vec4(0.2, 0.2, 0.2, 1.0); // Floor
+             // Floor or Ceiling
+             bool isFloor = pos.y > drawEnd;
+             
+             // Calculate distance from camera to floor/ceiling point
+             float horizon = uResolution.y / 2.0 + uPitch;
+             float diff = pos.y - horizon;
+             
+             // Avoid division by zero at horizon
+             if (abs(diff) < 1.0) diff = sign(diff) * 1.0; 
+             if (diff == 0.0) diff = 1.0;
+
+             // Standard floor casting formula
+             float rowDistance = (0.5 * uResolution.y) / abs(diff);
+             
+             // World position of the floor/ceiling point
+             vec2 floorPos = uPlayerPos + rowDistance * rayDir;
+             
+             // Texture Coordinates (Using fractional part of world pos)
+             vec2 floorUV = floorPos - floor(floorPos);
+             
+             // Select Tile from Atlas
+             // Floor = Index 2, Ceiling = Index 3
+             // We can make this dynamic later based on map data? 
+             // For now, uniform floor/ceiling is fine.
+             float slotIdx = isFloor ? 2.0 : 3.0;
+             
+             float tileX = mod(slotIdx, TILES_PER_ROW);
+             float tileY = floor(slotIdx / TILES_PER_ROW);
+             
+             vec2 atlasUV = vec2(
+                 (tileX * TILE_SIZE + floorUV.x * TILE_SIZE) / ATLAS_SIZE,
+                 (tileY * TILE_SIZE + floorUV.y * TILE_SIZE) / ATLAS_SIZE
+             );
+             
+             vec4 texColor = texture(uAtlas, atlasUV);
+             
+             // Apply Lighting
+             vec3 lighting = uAmbientLight.rgb;
+             
+             // Add Point Lights (Optional: Shadows on floor are expensive, skipping for now)
+             for (int i = 0; i < MAX_LIGHTS; i++) {
+                 if (i >= int(uLightingParams.x)) break;
+                 vec4 d1 = uLightData[i * 2];
+                 vec4 d2 = uLightData[i * 2 + 1];
+                 
+                 vec2 lightPos = d1.xy;
+                 float radius = d1.z;
+                 float intensity = d1.w;
+                 vec3 color = d2.rgb;
+                 
+                 float dist = distance(floorPos, lightPos);
+                 if (dist < radius) {
+                     float att = 1.0 - (dist / radius);
+                     att = att * att; 
+                     lighting += color * intensity * att;
+                 }
+             }
+
+             if (!isFloor) lighting *= 0.6; // Darker ceiling
+             
+             vec3 finalColor = texColor.rgb * lighting;
+             
+             // Apply Fog
+             float fogFactor = clamp(rowDistance / uFogDistance, 0.0, 1.0);
+             fragColor = vec4(mix(finalColor, vec3(0.0), fogFactor), 1.0);
         }
 
     } else {

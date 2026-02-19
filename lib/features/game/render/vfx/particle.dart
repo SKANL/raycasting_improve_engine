@@ -9,6 +9,7 @@ class Particle {
     required this.textureRect,
     this.scale = 1.0,
     this.gravity = 0.0,
+    this.color = const Color(0xFFFFFFFF),
   });
 
   Vector2 position;
@@ -18,6 +19,7 @@ class Particle {
   Rect textureRect;
   double scale;
   double gravity;
+  Color color;
 
   void update(double dt) {
     position += velocity * dt;

@@ -19,6 +19,18 @@ class ActionMapper {
     LogicalKeyboardKey.keyE: GameAction.interact,
     LogicalKeyboardKey.keyR: GameAction.reload,
 
+    // Weapon Switching
+    LogicalKeyboardKey.digit1: GameAction.switchWeapon1,
+    LogicalKeyboardKey.numpad1: GameAction.switchWeapon1,
+    LogicalKeyboardKey.digit2: GameAction.switchWeapon2,
+    LogicalKeyboardKey.numpad2: GameAction.switchWeapon2,
+    LogicalKeyboardKey.digit3: GameAction.switchWeapon3,
+    LogicalKeyboardKey.numpad3: GameAction.switchWeapon3,
+    LogicalKeyboardKey.digit4: GameAction.switchWeapon4,
+    LogicalKeyboardKey.numpad4: GameAction.switchWeapon4,
+    LogicalKeyboardKey.digit5: GameAction.switchWeapon5,
+    LogicalKeyboardKey.numpad5: GameAction.switchWeapon5,
+
     // System
     LogicalKeyboardKey.tab: GameAction.togglePerspective,
     LogicalKeyboardKey.escape: GameAction.pause,

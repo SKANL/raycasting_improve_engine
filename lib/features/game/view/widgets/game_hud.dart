@@ -1,41 +1,141 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
 
 /// HUD overlay displaying game information
-class GameHud extends StatelessWidget {
+class GameHud extends StatefulWidget {
   const GameHud({super.key});
 
   @override
+  State<GameHud> createState() => _GameHudState();
+}
+
+class _GameHudState extends State<GameHud> with SingleTickerProviderStateMixin {
+  late AnimationController _damageController;
+  late Animation<double> _damageAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _damageController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _damageAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _damageController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _damageController.dispose();
+    super.dispose();
+  }
+
+  void _onWorldStateChanged(BuildContext context, WorldState state) {
+    if (state.effects.any((e) => e is PlayerDamagedEffect)) {
+      _damageController.forward().then((_) => _damageController.reverse());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // Top-left: Health and stats
-        Positioned(
-          top: 16,
-          left: 16,
-          child: _HealthDisplay(),
-        ),
+    return BlocListener<WorldBloc, WorldState>(
+      listener: _onWorldStateChanged,
+      child: Stack(
+        children: [
+          // Damage Vignette
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _damageAnimation,
+              builder: (context, child) {
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 1.0,
+                      colors: [
+                        Colors.transparent,
+                        Colors.red.withValues(
+                          alpha: 0.5 * _damageAnimation.value,
+                        ),
+                      ],
+                      stops: const [0.6, 1.0],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
 
-        // Top-right: Ammo counter
-        Positioned(
-          top: 16,
-          right: 16,
-          child: _AmmoDisplay(),
-        ),
+          // Top-left: Health and stats
+          Positioned(
+            top: 16,
+            left: 16,
+            child: _HealthDisplay(),
+          ),
 
-        // Center: Crosshair
-        const Center(
-          child: _Crosshair(),
-        ),
+          // Top-right: Ammo counter
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _AmmoDisplay(),
+          ),
 
-        // Bottom-right: Minimap (placeholder)
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: _MinimapPlaceholder(),
-        ),
-      ],
+          // Center: Crosshair
+          const Center(
+            child: _Crosshair(),
+          ),
+
+          // Bottom-right: Minimap (placeholder)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: _MinimapPlaceholder(),
+          ),
+
+          // Game Over Overlay
+          BlocBuilder<WorldBloc, WorldState>(
+            buildWhen: (previous, current) =>
+                previous.isPlayerDead != current.isPlayerDead,
+            builder: (context, state) {
+              if (state.isPlayerDead) {
+                return Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.red, width: 4),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'YOU DIED',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 4.0,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Press R to Restart', // Input handling for restart needs to be implemented
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -44,83 +144,99 @@ class GameHud extends StatelessWidget {
 class _HealthDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withOpacity(0.5), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'HEALTH',
-            style: TextStyle(
-              color: Colors.red,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
+    return BlocBuilder<WorldBloc, WorldState>(
+      buildWhen: (previous, current) =>
+          previous.playerHealth != current.playerHealth ||
+          previous.playerMaxHealth != current.playerMaxHealth,
+      builder: (context, state) {
+        final health = state.playerHealth;
+        final maxHealth = state.playerMaxHealth;
+        final percent = (health / maxHealth).clamp(0.0, 1.0);
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Colors.red.withValues(alpha: 0.5),
+              width: 2,
             ),
           ),
-          const SizedBox(height: 4),
-          SizedBox(
-            width: 200,
-            height: 24,
-            child: Stack(
-              children: [
-                // Background
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.red.withOpacity(0.4)),
-                  ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'HEALTH',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
                 ),
-                // Health bar (TODO: connect to player health state)
-                FractionallySizedBox(
-                  widthFactor: 0.75, // 75% health for demo
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.red.shade700,
-                          Colors.red.shade500,
-                        ],
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 200,
+                height: 24,
+                child: Stack(
+                  children: [
+                    // Background
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.4),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withOpacity(0.5),
-                          blurRadius: 8,
-                        ),
-                      ],
                     ),
-                  ),
-                ),
-                // Health text
-                Center(
-                  child: Text(
-                    '75 / 100', // TODO: connect to actual health
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withOpacity(0.8),
-                          blurRadius: 4,
+                    // Health bar
+                    FractionallySizedBox(
+                      widthFactor: percent,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.red.shade700,
+                              Colors.red.shade500,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withValues(alpha: 0.5),
+                              blurRadius: 8,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    // Health text
+                    Center(
+                      child: Text(
+                        '$health / $maxHealth',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.8),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -138,12 +254,12 @@ class _AmmoDisplay extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.6),
+            color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isLow
-                  ? Colors.orange.withOpacity(0.5)
-                  : Colors.cyan.withOpacity(0.5),
+                  ? Colors.orange.withValues(alpha: 0.5)
+                  : Colors.cyan.withValues(alpha: 0.5),
               width: 2,
             ),
           ),
@@ -175,8 +291,8 @@ class _AmmoDisplay extends StatelessWidget {
                       shadows: [
                         Shadow(
                           color: isLow
-                              ? Colors.orange.withOpacity(0.8)
-                              : Colors.cyan.withOpacity(0.5),
+                              ? Colors.orange.withValues(alpha: 0.8)
+                              : Colors.cyan.withValues(alpha: 0.5),
                           blurRadius: 8,
                         ),
                       ],
@@ -234,7 +350,7 @@ class _CrosshairPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
+      ..color = Colors.white.withValues(alpha: 0.8)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -275,7 +391,7 @@ class _CrosshairPainter extends CustomPainter {
       center,
       2,
       Paint()
-        ..color = Colors.red.withOpacity(0.6)
+        ..color = Colors.red.withValues(alpha: 0.6)
         ..style = PaintingStyle.fill,
     );
   }
@@ -293,9 +409,12 @@ class _MinimapPlaceholder extends StatelessWidget {
       height: 150,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.6),
+        color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.withOpacity(0.5), width: 2),
+        border: Border.all(
+          color: Colors.green.withValues(alpha: 0.5),
+          width: 2,
+        ),
       ),
       child: Center(
         child: Text(

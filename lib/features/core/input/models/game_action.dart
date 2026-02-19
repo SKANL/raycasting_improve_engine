@@ -44,6 +44,22 @@ enum GameAction {
   /// Reload weapon.
   reload,
 
+  // --- Weapon Switching ---
+  /// Switch to Weapon 1 (Pistol)
+  switchWeapon1,
+
+  /// Switch to Weapon 2 (Shotgun)
+  switchWeapon2,
+
+  /// Switch to Weapon 3 (Rifle)
+  switchWeapon3,
+
+  /// Switch to Weapon 4 (Bounce Pistol)
+  switchWeapon4,
+
+  /// Switch to Weapon 5 (Bounce Rifle)
+  switchWeapon5,
+
   // --- System ---
   /// Toggle between perspective views (3D, 2D, Iso).
   togglePerspective,

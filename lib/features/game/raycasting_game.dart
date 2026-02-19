@@ -1,21 +1,26 @@
+import 'dart:async';
 import 'dart:math' as math;
-
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flame_bloc/flame_bloc.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart'; // For KeyEventResult
+import 'package:vector_math/vector_math_64.dart' as v64;
+
 import 'package:raycasting_game/features/core/input/action_mapper.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/input/models/game_action.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
-import 'package:raycasting_game/features/core/world/models/game_map.dart';
+
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
+import 'package:raycasting_game/features/game/render/hud/damage_flash_component.dart';
+import 'package:raycasting_game/features/game/render/hud/game_over_overlay.dart';
 import 'package:raycasting_game/features/game/render/raycast_renderer.dart';
 import 'package:raycasting_game/features/game/render/shader_manager.dart';
+import 'package:raycasting_game/features/game/systems/physics_system.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
-import 'package:vector_math/vector_math_64.dart' as v64;
+import 'package:raycasting_game/features/game/weapon/models/weapon.dart';
 
 class RaycastingGame extends FlameGame with KeyboardEvents {
   RaycastingGame({
@@ -33,6 +38,7 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   final WeaponBloc weaponBloc;
 
   RaycastRenderer? _renderer;
+  DamageFlashComponent? _damageFlash;
 
   @override
   Future<void> onLoad() async {
@@ -44,6 +50,9 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
 
     final renderer = RaycastRenderer();
     _renderer = renderer;
+
+    _damageFlash = DamageFlashComponent();
+    await add(_damageFlash!);
 
     await add(
       FlameBlocProvider<GameBloc, GameState>.value(
@@ -68,6 +77,28 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
         ],
       ),
     );
+
+    // Listen for Game State changes
+    gameBloc.stream.listen((state) async {
+      if (state.status == GameStatus.gameOver) {
+        await add(GameOverOverlay());
+      }
+    });
+
+    // Listen for World Effects (Sound, Damage, etc.)
+    worldBloc.stream.listen((worldState) {
+      if (worldState.effects.isNotEmpty) {
+        for (final effect in worldState.effects) {
+          if (effect is PlayerDamagedEffect) {
+            gameBloc.add(PlayerDamaged(effect.amount));
+            _damageFlash?.flash();
+          }
+        }
+      }
+    });
+
+    // Start with fully restored health
+    // gameBloc.add(GameReset());
   }
 
   void _spawnMuzzleFlash(v64.Vector2 position, double direction) {
@@ -82,6 +113,8 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   }
 
   void _processInput(double dt) {
+    if (gameBloc.state.status == GameStatus.gameOver) return;
+
     final inputState = inputBloc.state;
     var moveStep = 0.0;
     var strafeStep = 0.0;
@@ -99,8 +132,16 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
 
     // Handle shooting
     if (inputState.isPressed(GameAction.fire)) {
-      weaponBloc.add(const WeaponFired());
       if (weaponBloc.state.canFire) {
+        final currentWeapon = weaponBloc.state.currentWeapon;
+
+        // 1. Update Weapon State (Ammo/Cooldown)
+        weaponBloc.add(const WeaponFired());
+
+        // 2. Notify World (Handles hitscan/projectiles and damage)
+        worldBloc.add(PlayerFired(currentWeapon));
+
+        // 3. Visuals (Muzzle flash)
         final playerPos = worldBloc.state.effectivePosition;
         final playerDir = worldBloc.state.playerDirection;
         final flashPos =
@@ -125,24 +166,22 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
       final dirX = math.cos(newRot);
       final dirY = math.sin(newRot);
 
-      final moveVec = v64.Vector2(dirX, dirY) * (moveStep * moveSpeed * dt);
-      final strafeVec =
-          v64.Vector2(-dirY, dirX) * (strafeStep * moveSpeed * dt);
-      final totalMove = moveVec + strafeVec;
+      final moveVec = v64.Vector2(dirX, dirY) * (moveStep * moveSpeed);
+      final strafeVec = v64.Vector2(-dirY, dirX) * (strafeStep * moveSpeed);
+      final velocity = moveVec + strafeVec;
 
       final map = worldBloc.state.map;
-      var finalPos = currentPos.clone();
 
-      if (map != null) {
-        final nextX = currentPos.x + totalMove.x;
-        if (!_isSolid(map, nextX + 0.2 * totalMove.x.sign, currentPos.y))
-          finalPos.x = nextX;
-        final nextY = currentPos.y + totalMove.y;
-        if (!_isSolid(map, finalPos.x, nextY + 0.2 * totalMove.y.sign))
-          finalPos.y = nextY;
-      } else {
-        finalPos = currentPos + totalMove;
-      }
+      // Use PhysicsSystem for movement (handles walls AND entities)
+      final finalPos = PhysicsSystem.tryMove(
+        'player',
+        currentPos,
+        velocity,
+        dt,
+        map,
+        worldBloc.state.entities,
+        radius: 0.3,
+      );
 
       worldBloc.add(PlayerMoved(position: finalPos, direction: newRot));
     }
@@ -157,8 +196,27 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     if (action == null) return KeyEventResult.ignored;
 
     if (event is KeyDownEvent) {
-      if (action == GameAction.togglePerspective)
+      if (action == GameAction.togglePerspective) {
         perspectiveBloc.add(const PerspectiveToggled());
+      }
+
+      // Weapon Switching
+      if (action == GameAction.switchWeapon1) {
+        weaponBloc.add(const WeaponSwitched(Weapon.pistol));
+      }
+      if (action == GameAction.switchWeapon2) {
+        weaponBloc.add(const WeaponSwitched(Weapon.shotgun));
+      }
+      if (action == GameAction.switchWeapon3) {
+        weaponBloc.add(const WeaponSwitched(Weapon.rifle));
+      }
+      if (action == GameAction.switchWeapon4) {
+        weaponBloc.add(const WeaponSwitched(Weapon.bouncePistol));
+      }
+      if (action == GameAction.switchWeapon5) {
+        weaponBloc.add(const WeaponSwitched(Weapon.bounceRifle));
+      }
+
       inputBloc.add(ActionStarted(action));
       return KeyEventResult.handled;
     } else if (event is KeyUpEvent) {
@@ -167,7 +225,4 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     }
     return KeyEventResult.ignored;
   }
-
-  bool _isSolid(GameMap map, double x, double y) =>
-      map.getCell(x.floor(), y.floor()).isSolid;
 }

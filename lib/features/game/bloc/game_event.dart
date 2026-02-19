@@ -22,3 +22,11 @@ class ScoreChanged extends GameEvent {
   @override
   List<Object> get props => [score];
 }
+
+class PlayerDamaged extends GameEvent {
+  const PlayerDamaged(this.amount);
+  final int amount;
+
+  @override
+  List<Object> get props => [amount];
+}

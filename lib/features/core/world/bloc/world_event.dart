@@ -43,6 +43,16 @@ final class PlayerMoved extends WorldEvent {
   List<Object?> get props => [position, direction];
 }
 
+/// Triggered when the player fires a weapon.
+final class PlayerFired extends WorldEvent {
+  const PlayerFired(this.weapon);
+
+  final Weapon weapon;
+
+  @override
+  List<Object?> get props => [weapon];
+}
+
 /// Triggered when an entity's state changes.
 final class EntityUpdated extends WorldEvent {
   const EntityUpdated({
@@ -102,4 +112,34 @@ final class WorldTick extends WorldEvent {
 
   @override
   List<Object?> get props => [dt];
+}
+
+/// Triggered when a loud sound is emitted (e.g. gunshot).
+final class SoundEmitted extends WorldEvent {
+  const SoundEmitted({
+    required this.source,
+    required this.radius,
+    required this.volume,
+  });
+
+  final Vector2 source;
+  final double radius;
+  final double volume;
+
+  @override
+  List<Object?> get props => [source, radius, volume];
+}
+
+/// Triggered when an entity takes damage.
+final class EntityDamaged extends WorldEvent {
+  const EntityDamaged({
+    required this.entityId,
+    required this.damage,
+  });
+
+  final String entityId;
+  final int damage;
+
+  @override
+  List<Object?> get props => [entityId, damage];
 }

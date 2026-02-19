@@ -1,0 +1,34 @@
+00:00 +0: loading C:/code/game_v2/raycasting_game/test/features/core/world/bloc/world_bloc_test.dart
+00:00 +0: WorldBloc initial state is empty
+00:00 +1: WorldBloc emits [loading, active] when WorldInitialized is added
+00:00 +1 -1: WorldBloc emits [loading, active] when WorldInitialized is added [E]
+  Expected: [
+              <<Instance of 'WorldState'> with `status`: WorldStatus:<WorldStatus.loading>>,
+              <<Instance of 'WorldState'> with `status`: WorldStatus:<WorldStatus.active> and `map`: not null and `width`: <32> and `entities`: non-empty>
+            ]
+    Actual: [
+              WorldState:WorldState(WorldStatus.loading, null, null, null, null, [], [], null, 0.0, 0.0, [])
+            ]
+     Which: at location [1] is [
+              WorldState:WorldState(WorldStatus.loading, null, null, null, null, [], [], null, 0.0, 0.0, [])
+            ] which shorter than expected
+  
+  package:matcher                              expect
+  package:bloc_test/src/bloc_test.dart 218:16  testBloc.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                   _Completer.completeError
+  package:bloc_test/src/bloc_test.dart 255:43  _runZonedGuarded.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                   _CustomZone.registerBinaryCallback
+  package:bloc_test/src/bloc_test.dart 252:5   _runZonedGuarded.<fn>
+  dart:async                                   runZonedGuarded
+  package:bloc_test/src/bloc_test.dart 251:3   _runZonedGuarded
+  package:bloc_test/src/bloc_test.dart 198:11  testBloc
+  package:bloc_test/src/bloc_test.dart 156:13  blocTest.<fn>
+  
+00:00 +1 -1: WorldBloc emits updated player position when PlayerMoved is added
+00:00 +1 -1: WorldBloc emits [loading, active] when WorldInitialized is added
+[38;5;4m┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+[38;5;4m│ [info] | 7:40:27 99ms | [WORLD] [TEXTURES_GENERATED] {mapTexture: true, textureAtlas: true, spriteAtlas: true, mapSize: 32x32}[0m
+[38;5;4m└──────────────────────────────────────────────────────────────────────────────────────────────────────────────[0m
+00:00 +2 -1: Some tests failed.
