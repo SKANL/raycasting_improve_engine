@@ -1,4 +1,5 @@
 import 'package:raycasting_game/features/core/ecs/components/animation_component.dart';
+import 'package:raycasting_game/features/core/ecs/components/render_component.dart';
 import 'package:raycasting_game/features/core/world/models/game_entity.dart';
 
 /// System that advances animation timers for all entities with AnimationComponent.
@@ -34,19 +35,41 @@ class AnimationSystem {
         }
       }
 
-      if (newFrame != anim.currentFrame || newTimer != anim.timer) {
+      // --- FADE OUT LOGIC ---
+      // Check if this is a finished death animation
+      // "die" state + non-looping + finished last frame
+      var newOpacity = 1.0;
+      var shouldRemove = false;
+
+      final render = entity.getComponent<RenderComponent>();
+      if (render != null) {
+        newOpacity = render.opacity;
+
+        // If we are in 'die' state and finished the animation (last frame)
+        if (anim.currentState == 'die' && newFrame == state.frames.length - 1) {
+          // Start fading out
+          newOpacity -= dt * 0.5; // Fade over 2 seconds
+          if (newOpacity <= 0) {
+            newOpacity = 0;
+            shouldRemove = true;
+          }
+        }
+      }
+
+      if (newFrame != anim.currentFrame ||
+          newTimer != anim.timer ||
+          (render != null && render.opacity != newOpacity)) {
         updatedEntities[i] = entity.copyWith(
+          isActive: !shouldRemove, // Deactivate if fully faded
           components: entity.components.map((c) {
             if (c is AnimationComponent) {
-              if (entity.id == 'enemy_1' && newFrame != anim.currentFrame) {
-                print(
-                  '[ANIM] Entity ${entity.id} Frame: $newFrame State: ${anim.currentState}',
-                );
-              }
               return anim.copyWith(
                 currentFrame: newFrame,
                 timer: newTimer,
               );
+            }
+            if (c is RenderComponent) {
+              return c.copyWith(opacity: newOpacity);
             }
             return c;
           }).toList(),

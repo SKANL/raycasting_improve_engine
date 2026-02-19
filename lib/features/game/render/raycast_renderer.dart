@@ -192,11 +192,17 @@ class RaycastRenderer extends PositionComponent
 
           // Check for Animation first
           final anim = entity.getComponent<AnimationComponent>();
+
+          double opacity = 1.0;
+          final r = entity.getComponent<RenderComponent>();
+          if (r != null) {
+            opacity = r.opacity;
+          }
+
           if (anim != null) {
             srcRect = anim.currentSprite;
           } else {
             // Fallback to RenderComponent
-            final r = entity.getComponent<RenderComponent>();
             if (r != null && r.isVisible) {
               // Assuming RenderComponent might have a fixed rect or use default
               // For now, hardcoded default if RenderComponent exists but no rect logic
@@ -214,6 +220,7 @@ class RaycastRenderer extends PositionComponent
                   srcRect: srcRect,
                   distSq: (_latestState.effectivePosition - t.position).length2,
                   scale: scale,
+                  opacity: opacity,
                 ),
               );
             }

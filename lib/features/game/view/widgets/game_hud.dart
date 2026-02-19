@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
+import 'package:raycasting_game/features/game/view/widgets/minimap.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
 
 /// HUD overlay displaying game information
@@ -88,11 +89,15 @@ class _GameHudState extends State<GameHud> with SingleTickerProviderStateMixin {
             child: _Crosshair(),
           ),
 
-          // Bottom-right: Minimap (placeholder)
+          // Bottom-right: Minimap
           Positioned(
             bottom: 16,
             right: 16,
-            child: _MinimapPlaceholder(),
+            child: BlocBuilder<WorldBloc, WorldState>(
+              builder: (context, state) {
+                return MiniMap(state: state, size: 150);
+              },
+            ),
           ),
 
           // Game Over Overlay
@@ -398,35 +403,4 @@ class _CrosshairPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Minimap placeholder
-class _MinimapPlaceholder extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 150,
-      height: 150,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Colors.green.withValues(alpha: 0.5),
-          width: 2,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          'MINIMAP\n(TODO)',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.green.shade400,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
 }

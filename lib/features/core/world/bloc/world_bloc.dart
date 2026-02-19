@@ -103,7 +103,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
       final transform = TransformComponent(position: pos);
       const render = RenderComponent(spritePath: 'enemy_grunt');
-      const health = HealthComponent(current: 100, max: 100);
+      const health = HealthComponent(current: 40, max: 40);
       final ai = AIComponent(
         detectionRange: 8,
         attackRange: 2,

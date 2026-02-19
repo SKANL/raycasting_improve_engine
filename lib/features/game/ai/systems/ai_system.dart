@@ -76,10 +76,10 @@ class AISystem {
     GameMap? map,
     List<GameEntity> allEntities,
   ) {
-    if (ai.currentState == AIState.die) {
-      // TODO: Handle death animation completion/deactivation here if needed
-      return null;
-    }
+    // if (ai.currentState == AIState.die) {
+    //   // We want to fall through to Animation Sync so the 'die' animation plays
+    //   // But we don't want to run logic (Chase/Attack)
+    // }
 
     final distToPlayer = (playerPosition - transform.position).length;
     final hasLOS = PhysicsSystem.hasLineOfSight(
@@ -271,7 +271,8 @@ class AISystem {
         }
         break;
 
-      default:
+      // 5. DIE (Do nothing, just drift into the void... waiting for animation to finish)
+      case AIState.die:
         break;
     }
 

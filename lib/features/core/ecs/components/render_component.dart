@@ -6,6 +6,7 @@ class RenderComponent extends GameComponent {
     this.width = 32.0,
     this.height = 32.0,
     this.isVisible = true,
+    this.opacity = 1.0,
   });
 
   /// Path to the sprite asset or atlas key.
@@ -19,20 +20,25 @@ class RenderComponent extends GameComponent {
 
   final bool isVisible;
 
+  /// Opacity for fade effects (0.0 to 1.0).
+  final double opacity;
+
   RenderComponent copyWith({
     String? spritePath,
     double? width,
     double? height,
     bool? isVisible,
+    double? opacity,
   }) {
     return RenderComponent(
       spritePath: spritePath ?? this.spritePath,
       width: width ?? this.width,
       height: height ?? this.height,
       isVisible: isVisible ?? this.isVisible,
+      opacity: opacity ?? this.opacity,
     );
   }
 
   @override
-  List<Object?> get props => [spritePath, width, height, isVisible];
+  List<Object?> get props => [spritePath, width, height, isVisible, opacity];
 }

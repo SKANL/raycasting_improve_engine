@@ -1,4 +1,5 @@
 import 'package:vector_math/vector_math_64.dart' as v64;
+import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
 import 'package:raycasting_game/features/core/world/models/game_map.dart';
 import 'package:raycasting_game/features/core/world/models/game_entity.dart';
 import 'package:raycasting_game/features/core/ecs/components/transform_component.dart';
@@ -222,6 +223,10 @@ class PhysicsSystem {
 
       final otherTransform = other.getComponent<TransformComponent>();
       if (otherTransform == null) continue;
+
+      // Check if dead (non-solid)
+      final otherAI = other.getComponent<AIComponent>();
+      if (otherAI != null && otherAI.currentState == AIState.die) continue;
 
       // We assume all entities have roughly same radius for now (0.3)
       // or we could add a CollisionComponent later.
