@@ -15,12 +15,12 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     if (newHealth < 0) newHealth = 0;
 
     // Check game over
-    var status = state.status;
-    if (newHealth == 0) {
-      status = GameStatus.gameOver;
-    }
+    // var status = state.status;
+    // if (newHealth == 0) {
+    //   status = GameStatus.gameOver;
+    // }
 
-    emit(state.copyWith(health: newHealth, status: status));
+    emit(state.copyWith(health: newHealth));
   }
 
   void _onGameStarted(

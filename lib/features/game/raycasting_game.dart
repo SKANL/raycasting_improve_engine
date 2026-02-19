@@ -18,7 +18,7 @@ import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
 import 'package:raycasting_game/features/game/render/hud/damage_flash_component.dart';
-import 'package:raycasting_game/features/game/render/hud/game_over_overlay.dart';
+// import 'package:raycasting_game/features/game/render/hud/game_over_overlay.dart';
 import 'package:raycasting_game/features/game/render/raycast_renderer.dart';
 import 'package:raycasting_game/features/game/render/shader_manager.dart';
 import 'package:raycasting_game/features/game/systems/physics_system.dart';
@@ -92,11 +92,11 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     );
 
     // Listen for Game State changes
-    gameBloc.stream.listen((state) async {
-      if (state.status == GameStatus.gameOver) {
-        await add(GameOverOverlay());
-      }
-    });
+    // gameBloc.stream.listen((state) async {
+    //   if (state.status == GameStatus.gameOver) {
+    //     await add(GameOverOverlay());
+    //   }
+    // });
 
     // Listen for World Effects (Sound, Damage, etc.)
     worldBloc.stream.listen((worldState) {
@@ -170,12 +170,25 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   @override
   void update(double dt) {
     super.update(dt);
-    worldBloc.add(WorldTick(dt));
-    _processInput(dt);
+
+    // Only tick world if player is alive (or pause simulation)
+    // Actually, maybe we want to keep ticking for death animation?
+    // But we stop input.
+    if (!worldBloc.state.isPlayerDead) {
+      worldBloc.add(WorldTick(dt));
+      _processInput(dt);
+    } else {
+      // Continue generic world tick (logic) but maybe not player input
+      // If we stop WorldTick, animations stop.
+      // Let's keep ticking world so death animation plays/fades?
+      // But we said we want to stop "game".
+      // Let's just block input for now.
+      worldBloc.add(WorldTick(dt));
+    }
   }
 
   void _processInput(double dt) {
-    if (gameBloc.state.status == GameStatus.gameOver) return;
+    if (worldBloc.state.isPlayerDead) return;
 
     final inputState = inputBloc.state;
     var moveStep = 0.0;
