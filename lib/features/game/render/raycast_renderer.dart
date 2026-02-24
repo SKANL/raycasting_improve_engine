@@ -157,7 +157,7 @@ class RaycastRenderer extends PositionComponent
         playerDir: _latestState.playerDirection,
         fov: planeLen,
         pitch: config.pitch * 5.0,
-        fogDistance: 20.0,
+        fogDistance: 5.0,
         lights: lightData,
         lightCount: activeLights,
         mapTexture: mapTexture,
@@ -197,6 +197,10 @@ class RaycastRenderer extends PositionComponent
           final r = entity.getComponent<RenderComponent>();
           if (r != null) {
             opacity = r.opacity;
+            // Scale based on RenderComponent width (default 32px tile)
+            if (r.width > 0) {
+              scale = r.width / 32.0;
+            }
           }
 
           if (anim != null) {
@@ -213,16 +217,28 @@ class RaycastRenderer extends PositionComponent
           if (t != null && srcRect != null) {
             // OCCLUSION CHECK
             if (_isSpriteVisible(_latestState, t.position)) {
-              renderables.add(
-                _RenderableSprite(
-                  pos: t.position,
-                  texture: _latestState.spriteAtlas!,
-                  srcRect: srcRect,
-                  distSq: (_latestState.effectivePosition - t.position).length2,
-                  scale: scale,
-                  opacity: opacity,
-                ),
-              );
+              final sqDist =
+                  (_latestState.effectivePosition - t.position).length2;
+              final dist = math.sqrt(sqDist);
+
+              // CPU Fog Logic for Spirits matching GLSL exponential fog
+              final maxFogDist = 5.0; // Same as shader fog distance
+              final fogFactor =
+                  1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
+              final finalOpacity = math.max(0.0, opacity * (1.0 - fogFactor));
+
+              if (finalOpacity > 0.05) {
+                renderables.add(
+                  _RenderableSprite(
+                    pos: t.position,
+                    texture: _latestState.spriteAtlas!,
+                    srcRect: srcRect,
+                    distSq: sqDist,
+                    scale: scale,
+                    opacity: finalOpacity,
+                  ),
+                );
+              }
             }
           }
         }
@@ -233,15 +249,32 @@ class RaycastRenderer extends PositionComponent
         for (final p in _particleSystem.particles) {
           // Occlusion check for particles too
           if (_isSpriteVisible(_latestState, p.position)) {
-            renderables.add(
-              _RenderableSprite(
-                pos: p.position,
-                texture: _latestState.spriteAtlas!,
-                srcRect: p.textureRect,
-                distSq: (_latestState.effectivePosition - p.position).length2,
-                scale: p.scale,
-              ),
-            );
+            final sqDist =
+                (_latestState.effectivePosition - p.position).length2;
+            final dist = math.sqrt(sqDist);
+
+            // CPU Fog Logic
+            final maxFogDist = 5.0;
+            final fogFactor =
+                1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
+            final finalOpacity = math.max(
+              0.0,
+              1.0 * (1.0 - fogFactor),
+            ); // Default particle base opacity is 1.0
+
+            if (finalOpacity > 0.05) {
+              renderables.add(
+                _RenderableSprite(
+                  pos: p.position,
+                  texture: _latestState.spriteAtlas!,
+                  srcRect: p.textureRect,
+                  distSq: sqDist,
+                  scale: p.scale,
+                  opacity:
+                      finalOpacity, // We must add opacity handling to particle rendering later if missing
+                ),
+              );
+            }
           }
         }
       }

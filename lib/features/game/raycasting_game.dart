@@ -17,8 +17,7 @@ import 'package:raycasting_game/features/core/input/models/game_action.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
-import 'package:raycasting_game/features/game/render/hud/damage_flash_component.dart';
-// import 'package:raycasting_game/features/game/render/hud/game_over_overlay.dart';
+// DamageFlashComponent removed — vignette is handled by game_hud.dart Flutter layer
 import 'package:raycasting_game/features/game/render/raycast_renderer.dart';
 import 'package:raycasting_game/features/game/render/shader_manager.dart';
 import 'package:raycasting_game/features/game/systems/physics_system.dart';
@@ -41,7 +40,10 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   final WeaponBloc weaponBloc;
 
   RaycastRenderer? _renderer;
-  DamageFlashComponent? _damageFlash;
+  // DamageFlashComponent removed — see game_hud.dart
+
+  /// StreamSubscription for world effects — must be cancelled on dispose
+  StreamSubscription<WorldState>? _worldEffectsSub;
 
   // Mobile Controls
   JoystickComponent? _joystick;
@@ -58,9 +60,6 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
 
     final renderer = RaycastRenderer();
     _renderer = renderer;
-
-    _damageFlash = DamageFlashComponent();
-    await add(_damageFlash!);
 
     // Initialize Mobile Controls if on mobile
     if (_isMobile()) {
@@ -99,12 +98,13 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     // });
 
     // Listen for World Effects (Sound, Damage, etc.)
-    worldBloc.stream.listen((worldState) {
+    // Stored so it can be cancelled in onRemove and avoids EngineFlutterView disposed assertion.
+    _worldEffectsSub = worldBloc.stream.listen((worldState) {
       if (worldState.effects.isNotEmpty) {
         for (final effect in worldState.effects) {
           if (effect is PlayerDamagedEffect) {
             gameBloc.add(PlayerDamaged(effect.amount));
-            _damageFlash?.flash();
+            // Vignette flash is now handled purely by game_hud.dart via BLoC state
           }
         }
       }
@@ -112,6 +112,14 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
 
     // Start with fully restored health
     // gameBloc.add(GameReset());
+  }
+
+  @override
+  void onDetach() {
+    // Cancel the stream subscription to avoid rendering on a disposed EngineFlutterView
+    _worldEffectsSub?.cancel();
+    _worldEffectsSub = null;
+    super.onDetach();
   }
 
   bool _isMobile() {

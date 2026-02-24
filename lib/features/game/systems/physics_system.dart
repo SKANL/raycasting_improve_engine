@@ -173,16 +173,30 @@ class PhysicsSystem {
     // Re-calculate based on sliding
     newPos = currentPos + movement;
 
-    // 3. Entity Collision
+    // 3. Entity Collision (with reactive separation)
+    // [FIX] Pass currentPos so that escape movement (increasing distance) is
+    // always allowed even when the agent is already overlapping an entity.
     if (movement.length > 0) {
       // Check X
-      var posX = currentPos + v64.Vector2(movement.x, 0);
-      if (_isCollidingWithEntity(appEntityId, posX, entities, radius)) {
+      final posX = currentPos + v64.Vector2(movement.x, 0);
+      if (_isCollidingWithEntity(
+        appEntityId,
+        posX,
+        currentPos,
+        entities,
+        radius,
+      )) {
         movement.x = 0;
       }
       // Check Y
-      var posY = currentPos + v64.Vector2(0, movement.y);
-      if (_isCollidingWithEntity(appEntityId, posY, entities, radius)) {
+      final posY = currentPos + v64.Vector2(0, movement.y);
+      if (_isCollidingWithEntity(
+        appEntityId,
+        posY,
+        currentPos,
+        entities,
+        radius,
+      )) {
         movement.y = 0;
       }
       newPos = currentPos + movement;
@@ -211,30 +225,50 @@ class PhysicsSystem {
     return false;
   }
 
+  /// Returns true if [targetPos] collides with any active entity (except self).
+  ///
+  /// [currentPos] is provided to implement **reactive separation**: if the agent
+  /// is already overlapping an entity, movement that *increases* the separation
+  /// distance is allowed (returns false). Only movement that would *decrease* the
+  /// distance while still in overlap is blocked (returns true).
   static bool _isCollidingWithEntity(
     String selfId,
     v64.Vector2 targetPos,
+    v64.Vector2 currentPos,
     List<GameEntity> entities,
     double radius,
   ) {
-    // Basic Circle-Circle collision
     for (final other in entities) {
       if (other.id == selfId || !other.isActive) continue;
+
+      // Skip decorative fixtures (torches, barrels, etc.) — no collision.
+      if (other.id.startsWith('fixture_')) continue;
 
       final otherTransform = other.getComponent<TransformComponent>();
       if (otherTransform == null) continue;
 
-      // Check if dead (non-solid)
+      // Dead entities are non-solid — walk through corpses.
       final otherAI = other.getComponent<AIComponent>();
       if (otherAI != null && otherAI.currentState == AIState.die) continue;
 
-      // We assume all entities have roughly same radius for now (0.3)
-      // or we could add a CollisionComponent later.
       const otherRadius = 0.3;
       final minDist = radius + otherRadius;
+      final minDistSq = minDist * minDist;
 
-      final distSq = targetPos.distanceToSquared(otherTransform.position);
-      if (distSq < minDist * minDist) {
+      final newDistSq = targetPos.distanceToSquared(otherTransform.position);
+
+      if (newDistSq < minDistSq) {
+        // [FIX] Reactive separation: if we are ALREADY overlapping this entity
+        // (currentPos is also within minDist), allow the move only if it
+        // increases the separation distance (i.e. we are escaping the overlap).
+        final currentDistSq = currentPos.distanceToSquared(
+          otherTransform.position,
+        );
+        final alreadyOverlapping = currentDistSq < minDistSq;
+        if (alreadyOverlapping && newDistSq > currentDistSq) {
+          // Moving AWAY from overlap — permit it.
+          continue;
+        }
         return true;
       }
     }
@@ -256,6 +290,9 @@ class PhysicsSystem {
 
     for (final entity in entities) {
       if (entity.id == excludeId || !entity.isActive) continue;
+
+      // Skip decorative fixtures — projectiles pass through them.
+      if (entity.id.startsWith('fixture_')) continue;
 
       final transform = entity.getComponent<TransformComponent>();
       if (transform == null) continue;

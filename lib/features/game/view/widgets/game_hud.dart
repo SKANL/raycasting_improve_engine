@@ -5,142 +5,122 @@ import 'package:raycasting_game/features/game/view/widgets/minimap.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
 
 /// HUD overlay displaying game information
-class GameHud extends StatefulWidget {
+class GameHud extends StatelessWidget {
   const GameHud({super.key});
 
   @override
-  State<GameHud> createState() => _GameHudState();
-}
-
-class _GameHudState extends State<GameHud> with SingleTickerProviderStateMixin {
-  late AnimationController _damageController;
-  late Animation<double> _damageAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _damageController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
-    _damageAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _damageController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _damageController.dispose();
-    super.dispose();
-  }
-
-  void _onWorldStateChanged(BuildContext context, WorldState state) {
-    if (state.effects.any((e) => e is PlayerDamagedEffect)) {
-      _damageController.forward().then((_) => _damageController.reverse());
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return BlocListener<WorldBloc, WorldState>(
-      listener: _onWorldStateChanged,
-      child: Stack(
-        children: [
-          // Damage Vignette
-          IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _damageAnimation,
-              builder: (context, child) {
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 1.0,
-                      colors: [
-                        Colors.transparent,
-                        Colors.red.withValues(
-                          alpha: 0.5 * _damageAnimation.value,
-                        ),
-                      ],
-                      stops: const [0.6, 1.0],
-                    ),
+    return Stack(
+      children: [
+        // Damage Vignette (Pure UI driven by BLoC)
+        BlocBuilder<WorldBloc, WorldState>(
+          buildWhen: (previous, current) {
+            final prevEffect = previous.effects
+                .whereType<PlayerDamagedEffect>()
+                .firstOrNull;
+            final currEffect = current.effects
+                .whereType<PlayerDamagedEffect>()
+                .firstOrNull;
+            return prevEffect?.intensity != currEffect?.intensity;
+          },
+          builder: (context, state) {
+            final effect = state.effects
+                .whereType<PlayerDamagedEffect>()
+                .firstOrNull;
+            final intensity = effect?.intensity ?? 0.0;
+
+            if (intensity <= 0.0) return const SizedBox.shrink();
+
+            return IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.0,
+                    colors: [
+                      Colors.transparent,
+                      Colors.red.withValues(
+                        alpha: 0.6 * intensity,
+                      ), // Hard clamp to blood red outer ring
+                    ],
+                    stops: const [0.65, 1.0], // Leave 65% of center transparent
                   ),
-                );
-              },
-            ),
-          ),
+                ),
+              ),
+            );
+          },
+        ),
 
-          // Top-left: Health and stats
-          Positioned(
-            top: 16,
-            left: 16,
-            child: _HealthDisplay(),
-          ),
+        // Top-left: Health and stats
+        Positioned(
+          top: 16,
+          left: 16,
+          child: _HealthDisplay(),
+        ),
 
-          // Top-right: Ammo counter
-          Positioned(
-            top: 16,
-            right: 16,
-            child: _AmmoDisplay(),
-          ),
+        // Top-right: Ammo counter
+        Positioned(
+          top: 16,
+          right: 16,
+          child: _AmmoDisplay(),
+        ),
 
-          // Center: Crosshair
-          const Center(
-            child: _Crosshair(),
-          ),
+        // Center: Crosshair
+        const Center(
+          child: _Crosshair(),
+        ),
 
-          // Bottom-right: Minimap
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: BlocBuilder<WorldBloc, WorldState>(
-              builder: (context, state) {
-                return MiniMap(state: state, size: 150);
-              },
-            ),
-          ),
-
-          // Game Over Overlay
-          BlocBuilder<WorldBloc, WorldState>(
-            buildWhen: (previous, current) =>
-                previous.isPlayerDead != current.isPlayerDead,
+        // Bottom-right: Minimap
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: BlocBuilder<WorldBloc, WorldState>(
             builder: (context, state) {
-              if (state.isPlayerDead) {
-                return Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.red, width: 4),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'YOU DIED',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 4.0,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Press R to Restart', // Input handling for restart needs to be implemented
-                          style: TextStyle(color: Colors.white, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
+              return MiniMap(state: state, size: 150);
             },
           ),
-        ],
-      ),
+        ),
+
+        // Game Over Overlay
+        BlocBuilder<WorldBloc, WorldState>(
+          buildWhen: (previous, current) =>
+              previous.isPlayerDead != current.isPlayerDead,
+          builder: (context, state) {
+            if (state.isPlayerDead) {
+              return Center(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red, width: 4),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'YOU DIED',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 4.0,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Press R to Restart', // Input handling for restart needs to be implemented
+                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+      ],
     );
   }
 }

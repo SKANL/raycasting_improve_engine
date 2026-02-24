@@ -93,7 +93,19 @@ class MapGenerator {
       }
     }
 
-    return GameMap(width: width, height: height, grid: grid);
+    // 6. Collect room rects from all leaves for spawn placement
+    final rooms = <RoomRect>[];
+    void collectRooms(_Leaf l) {
+      if (l.room != null) {
+        rooms.add(l.room!);
+      }
+      if (l.leftChild != null) collectRooms(l.leftChild!);
+      if (l.rightChild != null) collectRooms(l.rightChild!);
+    }
+
+    collectRooms(root);
+
+    return GameMap(width: width, height: height, grid: grid, roomRects: rooms);
   }
 
   static void _createHall(_Leaf l, _Leaf r, List<List<Cell>> grid) {
@@ -113,13 +125,7 @@ class MapGenerator {
   }
 }
 
-class _Rect {
-  _Rect(this.x, this.y, this.width, this.height);
-  final int x;
-  final int y;
-  final int width;
-  final int height;
-}
+// _Rect is replaced by the public RoomRect class in game_map.dart.
 
 class _Leaf {
   _Leaf(this.x, this.y, this.width, this.height);
@@ -129,7 +135,7 @@ class _Leaf {
   final int height;
   _Leaf? leftChild;
   _Leaf? rightChild;
-  _Rect? room;
+  RoomRect? room;
 
   bool split() {
     if (leftChild != null || rightChild != null) {
@@ -170,7 +176,7 @@ class _Leaf {
     } else {
       // Create a room with some padding inside the leaf
       // Padding of 1 to ensure walls between rooms
-      room = _Rect(x + 1, y + 1, width - 2, height - 2);
+      room = RoomRect(x + 1, y + 1, width - 2, height - 2);
     }
   }
 }

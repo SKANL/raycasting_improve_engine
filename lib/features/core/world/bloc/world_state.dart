@@ -174,8 +174,25 @@ sealed class WorldEffect {
 
 /// Effect: Player takes damage.
 class PlayerDamagedEffect extends WorldEffect {
-  const PlayerDamagedEffect(this.amount);
+  const PlayerDamagedEffect(
+    this.amount, {
+    this.lifetime = 2.0,
+    this.maxLifetime = 2.0,
+  });
   final int amount;
+
+  /// Remaining lifetime in seconds (default 2.0s fading).
+  final double lifetime;
+
+  /// Total lifetime for percentage calculations.
+  final double maxLifetime;
+
+  /// Returns intensity from 1.0 (start) to 0.0 (end) using ease-out curve.
+  double get intensity {
+    final t = (maxLifetime - lifetime) / maxLifetime;
+    // Ease-out cubic for a fast initial flash that fades slowly
+    return 1.0 - (t * t * t);
+  }
 }
 
 /// Effect: Player killed an enemy.

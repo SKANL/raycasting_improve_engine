@@ -200,8 +200,8 @@ void main() {
              
              vec4 texColor = texture(uAtlas, atlasUV);
              
-             // Apply lighting
-             vec3 lighting = uAmbientLight.rgb;
+             // Apply lighting - Overridden for intense horror ambiance
+             vec3 lighting = vec3(0.01, 0.015, 0.02);
              
              // Calculate world position of the specific wall pixel
              vec2 hitPos;
@@ -243,10 +243,9 @@ void main() {
              
              vec3 finalColor = texColor.rgb * lighting;
 
-             // Apply Fog
-             float fogFactor = clamp(perpWallDist / uFogDistance, 0.0, 1.0);
-             // Use specific fog mix (e.g. darken towards black)
-             finalColor = mix(finalColor, vec3(0.0, 0.0, 0.0), fogFactor);
+             // Apply Fog - Exponential Squared for sudden darkness
+             float fogFactor = clamp(1.0 - exp(-pow(perpWallDist / (uFogDistance * 0.5), 2.0)), 0.0, 1.0);
+             finalColor = mix(finalColor, vec3(0.0), fogFactor);
 
              fragColor = vec4(finalColor, 1.0);
 
@@ -287,8 +286,8 @@ void main() {
              
              vec4 texColor = texture(uAtlas, atlasUV);
              
-             // Apply Lighting
-             vec3 lighting = uAmbientLight.rgb;
+             // Apply Lighting - Intense horror ambiance
+             vec3 lighting = vec3(0.01, 0.015, 0.02);
              
              // Add Point Lights (Optional: Shadows on floor are expensive, skipping for now)
              for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -309,12 +308,19 @@ void main() {
                  }
              }
 
-             if (!isFloor) lighting *= 0.6; // Darker ceiling
+             // Aggressive darkening before fog
+             if (!isFloor) {
+                 lighting *= 0.45; // Make the ceiling slightly more visible but still dark
+             } else {
+                 // Radial vignette effect based on rowDistance limits the floor view
+                 float floorVignette = clamp(1.0 - (rowDistance / 8.0), 0.2, 1.0);
+                 lighting *= (0.4 * floorVignette); // Darker mud floor
+             }
              
              vec3 finalColor = texColor.rgb * lighting;
              
-             // Apply Fog
-             float fogFactor = clamp(rowDistance / uFogDistance, 0.0, 1.0);
+             // Apply Fog - Exponential Squared
+             float fogFactor = clamp(1.0 - exp(-pow(rowDistance / (uFogDistance * 0.5), 2.0)), 0.0, 1.0);
              fragColor = vec4(mix(finalColor, vec3(0.0), fogFactor), 1.0);
         }
 

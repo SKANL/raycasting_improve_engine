@@ -347,32 +347,41 @@ class AISystem {
     var direction = target - transform.position;
     final distance = direction.length;
 
-    if (distance > 0.1) {
-      direction = direction.normalized();
-      final velocity = direction * ai.moveSpeed;
+    if (distance <= 0.1) return transform;
 
-      // Optimized collision list reuse
-      final collisionEntities = [...otherEntities];
-      collisionEntities.add(
-        GameEntity(
-          id: 'player',
-          components: [TransformComponent(position: playerPosition)],
-        ),
-      );
+    direction = direction.normalized();
 
-      final newPos = PhysicsSystem.tryMove(
-        entityId,
-        transform.position,
-        velocity,
-        dt,
-        map,
-        collisionEntities,
-        radius: 0.3,
-      );
-
+    // [FIX] Stop-before-contact: if already within minimum contact distance,
+    // only update rotation — do not attempt movement that would generate overlap.
+    // minContactDist = 0.3 (enemy radius) + 0.3 (player radius) + 0.05 (margin) = 0.65
+    const minContactDist = 0.65;
+    if (distance <= minContactDist) {
       final newRotation = math.atan2(direction.y, direction.x);
-      return transform.copyWith(position: newPos, rotation: newRotation);
+      return transform.copyWith(rotation: newRotation);
     }
-    return transform;
+
+    final velocity = direction * ai.moveSpeed;
+
+    // Include player as a solid entity for the enemy's collision check
+    final collisionEntities = [...otherEntities];
+    collisionEntities.add(
+      GameEntity(
+        id: 'player',
+        components: [TransformComponent(position: playerPosition)],
+      ),
+    );
+
+    final newPos = PhysicsSystem.tryMove(
+      entityId,
+      transform.position,
+      velocity,
+      dt,
+      map,
+      collisionEntities,
+      radius: 0.3,
+    );
+
+    final newRotation = math.atan2(direction.y, direction.x);
+    return transform.copyWith(position: newPos, rotation: newRotation);
   }
 }

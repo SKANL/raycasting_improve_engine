@@ -15,6 +15,7 @@ import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
 import 'package:raycasting_game/features/game/ai/systems/ai_system.dart';
 import 'package:raycasting_game/features/game/systems/animation_system.dart';
 import 'package:raycasting_game/features/core/ecs/components/animation_component.dart';
+
 import 'package:raycasting_game/features/game/models/projectile.dart';
 import 'package:raycasting_game/features/game/systems/damage_system.dart';
 import 'package:raycasting_game/features/game/systems/physics_system.dart';
@@ -52,7 +53,16 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     WorldInitialized event,
     Emitter<WorldState> emit,
   ) async {
-    emit(state.copyWith(status: WorldStatus.loading));
+    // [FIX-B3] Clear any previous entities/projectiles before re-initializing
+    // to prevent accumulation on hot-reload or repeated WorldInitialized events.
+    emit(
+      state.copyWith(
+        status: WorldStatus.loading,
+        entities: [],
+        projectiles: [],
+        playerPosition: null,
+      ),
+    );
 
     // Validate Dimensions (Enforce min 32x32)
     var width = event.width;
@@ -82,24 +92,35 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // Shuffle to randomize placement
     validCells.shuffle();
 
-    // 2.1 Spawn Player (First valid cell)
-    var spawn = validCells.isNotEmpty
-        ? validCells.removeAt(0)
-        : Vector2(1.5, 1.5);
+    // 2.1 Spawn Player — use center of the first room
+    //     Fall back to a raw cell if no rooms were generated.
+    var spawn = map.roomRects.isNotEmpty
+        ? Vector2(map.roomRects.first.centerX, map.roomRects.first.centerY)
+        : (validCells.isNotEmpty ? validCells.removeAt(0) : Vector2(1.5, 1.5));
 
-    // 2.2 Spawn Enemies (Next 5 cells)
+    // 2.2 Spawn Enemies — [FIX-B1+B2]
+    //   Phase 1: collect room centers that are far enough from player spawn.
+    //   Phase 2: take exactly min(5, candidates) — no while loop, no risk of
+    //            infinite iteration.
+    const maxEnemies = 5;
+    const minSpawnDist = 5.0;
+
+    final enemyCandidates =
+        map.roomRects
+            .skip(1) // skip the player's room
+            .map(
+              (r) => Vector2(r.centerX, r.centerY),
+            )
+            .where((pos) => pos.distanceTo(spawn) >= minSpawnDist)
+            .toList()
+          ..shuffle();
+
+    final spawnCount = math.min(maxEnemies, enemyCandidates.length);
+
     final entities = <GameEntity>[];
-    var enemiesToSpawn = 5;
 
-    while (enemiesToSpawn > 0 && validCells.isNotEmpty) {
-      final pos = validCells.removeAt(0);
-
-      // Ensure enemies aren't too close to player spawn
-      if (pos.distanceTo(spawn) < 4.0) {
-        // Put back at end and try next
-        validCells.add(pos);
-        continue;
-      }
+    for (var i = 0; i < spawnCount; i++) {
+      final pos = enemyCandidates[i];
 
       final transform = TransformComponent(position: pos);
       const render = RenderComponent(spritePath: 'enemy_grunt');
@@ -164,12 +185,21 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
       entities.add(
         GameEntity(
-          id: 'enemy_$enemiesToSpawn',
+          id: 'enemy_${i + 1}',
           components: [transform, render, health, ai, anim],
         ),
       );
-      enemiesToSpawn--;
+
+      LogService.info('WORLD', 'ENEMY_SPAWNED', {
+        'id': 'enemy_${i + 1}',
+        'pos': '(${pos.x.toStringAsFixed(1)}, ${pos.y.toStringAsFixed(1)})',
+      });
     }
+
+    LogService.info('WORLD', 'SPAWN_COMPLETE', {
+      'enemies': spawnCount,
+      'rooms': map.roomRects.length,
+    });
 
     // 3. Generate Textures (Keep original step 3 here)
     final mapTexture = await TexturePacker.packMap(map);
@@ -193,56 +223,11 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       LightSource(
         id: 'player_light',
         position: ui.Offset(spawn.x, spawn.y),
-        radius: 8,
-        color: const ui.Color(0xFFFFFFFF),
+        radius: 4.5,
+        intensity: 1.5,
+        color: const ui.Color(0xFFD6F6F5),
       ),
     );
-
-    // Procedural Torches
-    var lightsToSpawn = 7;
-    final rng = math.Random();
-
-    while (lightsToSpawn > 0 && validCells.isNotEmpty) {
-      final pos = validCells.removeAt(0);
-
-      // Ensure lights aren't too close to spawn (though less critical than enemies)
-      if (pos.distanceTo(spawn) < 5.0) {
-        continue;
-      }
-
-      // 50% chance to spawn light at this valid spot
-      // Actually, since we have a list of valid spots, let's just pick them.
-      // We can skip some to create variety, but since validCells is shuffled,
-      // picking sequentially is already random.
-
-      final isBlue = rng.nextDouble() > 0.7;
-      lights.add(
-        LightSource(
-          id: 'torch_${pos.x}_${pos.y}',
-          position: ui.Offset(pos.x, pos.y),
-          radius: 5.0 + rng.nextDouble() * 2.0,
-          intensity: 0.7 + rng.nextDouble() * 0.3,
-          color: isBlue
-              ? const ui.Color(0xFF0088FF)
-              : const ui.Color(0xFFFF8800),
-          flickerSpeed: 1.0 + rng.nextDouble() * 2.0,
-        ),
-      );
-
-      // Visual Entity for Torch
-      entities.add(
-        GameEntity(
-          id: 'fixture_torch_${pos.x}_${pos.y}',
-          components: [
-            TransformComponent(position: pos),
-            // Using 'enemy_grunt' as placeholder for now, visual confirmation
-            const RenderComponent(spritePath: 'enemy_grunt'),
-          ],
-        ),
-      );
-
-      lightsToSpawn--;
-    }
 
     emit(
       state.copyWith(
@@ -639,10 +624,32 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // 7. Apply Damage Results (Health reduction, Pain/Death state override)
     updatedEntities = _applyDamageResults(updatedEntities, damageResults);
 
-    // 8. Update Player Health
+    // 8. Update Player Health & Persist Effects
     var newPlayerHealth = state.playerHealth;
     var isPlayerDead = state.isPlayerDead;
     final newEffects = <WorldEffect>[];
+
+    // Process existing effects (e.g., aging the damage vignette)
+    for (final effect in state.effects) {
+      if (effect is PlayerDamagedEffect) {
+        final newLifetime = effect.lifetime - event.dt;
+        if (newLifetime > 0) {
+          // Keep it but updated
+          newEffects.add(
+            PlayerDamagedEffect(
+              effect.amount,
+              lifetime: newLifetime,
+              maxLifetime: effect.maxLifetime,
+            ),
+          );
+        }
+      } else {
+        // Drop other immediate effects (EnemyKilled, Hit)
+        // as they are consumed instantly by the UI/Audio layers.
+      }
+    }
+
+    var newPlayerPosition = state.effectivePosition;
 
     if (playerDamageTaken > 0 && !isPlayerDead) {
       if (currentInvulnerability > 0) {
@@ -661,6 +668,61 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
         // Grant momentary invincibility (0.5s)
         currentInvulnerability = 0.5;
+
+        // [FIX] Capa 3 — Knockback: push the player away from the closest
+        // melee attacker so they are never permanently trapped.
+        // A 0.5u impulse is enough to escape the overlap zone (minDist = 0.6u).
+        const knockbackStrength = 0.5;
+        GameEntity? closestAttacker;
+        var closestDist = double.infinity;
+
+        for (final entity in updatedEntities) {
+          if (!entity.isActive) continue;
+          final aiComp = entity.getComponent<AIComponent>();
+          // Only melee-type attackers generate contact-trapping situations.
+          if (aiComp == null ||
+              aiComp.attackType != AIAttackType.melee ||
+              aiComp.currentState == AIState.die)
+            continue;
+          final t = entity.getComponent<TransformComponent>();
+          if (t == null) continue;
+          final dist = newPlayerPosition.distanceTo(t.position);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestAttacker = entity;
+          }
+        }
+
+        if (closestAttacker != null) {
+          final attackerPos = closestAttacker
+              .getComponent<TransformComponent>()!
+              .position;
+          final awayDir = newPlayerPosition - attackerPos;
+          // If completely overlapping (zero vector), use a fixed direction
+          final pushDir = awayDir.length < 0.01
+              ? Vector2(1, 0)
+              : awayDir.normalized();
+
+          final impulse = pushDir * knockbackStrength;
+
+          newPlayerPosition = PhysicsSystem.tryMove(
+            'player',
+            newPlayerPosition,
+            impulse / event.dt, // Convert displacement to velocity
+            event.dt,
+            state.map,
+            updatedEntities,
+            radius: 0.3,
+          );
+
+          LogService.info('World', 'PLAYER_KNOCKBACK', {
+            'attacker': closestAttacker.id,
+            'pushDir':
+                '(${pushDir.x.toStringAsFixed(2)}, ${pushDir.y.toStringAsFixed(2)})',
+            'newPos':
+                '(${newPlayerPosition.x.toStringAsFixed(2)}, ${newPlayerPosition.y.toStringAsFixed(2)})',
+          });
+        }
 
         if (newPlayerHealth <= 0) {
           isPlayerDead = true;
@@ -686,13 +748,8 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         projectiles: newProjectiles,
         playerHealth: newPlayerHealth,
         isPlayerDead: isPlayerDead,
-        effects: newEffects.isEmpty
-            ? null
-            : newEffects, // Only override if we have new effects?
-        // Note: Effects are "one-shot" so we should clear them if list is null/empty?
-        // The bloc state usually holds "latest" effects. The UI consumes them.
-        // If we emit null, UI stops showing?
-        // We'll trust the listener handles it.
+        playerPosition: newPlayerPosition,
+        effects: newEffects.isEmpty ? null : newEffects,
         playerInvulnerabilityTime: currentInvulnerability,
         status: isPlayerDead ? WorldStatus.gameOver : state.status,
       ),
