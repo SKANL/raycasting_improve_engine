@@ -143,3 +143,9 @@ final class EntityDamaged extends WorldEvent {
   @override
   List<Object?> get props => [entityId, damage];
 }
+
+/// Triggered when transitioning to a new level.
+/// Disposes all current world textures and resets state to empty.
+final class LevelCleanup extends WorldEvent {
+  const LevelCleanup();
+}

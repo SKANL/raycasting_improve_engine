@@ -2,6 +2,9 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
+import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
+import 'package:raycasting_game/features/core/level/view/level_transition_overlay.dart';
+import 'package:raycasting_game/features/core/level/view/victory_screen.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/bloc/game_bloc.dart';
@@ -25,6 +28,9 @@ class GamePage extends StatelessWidget {
           create: (context) => GameBloc(
             worldBloc: context.read<WorldBloc>(),
           )..add(const GameStarted()),
+        ),
+        BlocProvider(
+          create: (_) => LevelBloc()..add(const LevelStarted()),
         ),
       ],
       child: const GameView(),
@@ -57,19 +63,55 @@ class _GameViewState extends State<GameView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // The Game Engine
-          GameWidget(
-            game: _game,
-            loadingBuilder: (_) => const Center(
-              child: CircularProgressIndicator(),
-            ),
+      body: MultiBlocListener(
+        listeners: [
+          // React when player enters the exit
+          BlocListener<WorldBloc, WorldState>(
+            listenWhen: (prev, curr) =>
+                !prev.playerEnteredExit && curr.playerEnteredExit,
+            listener: (ctx, _) {
+              final levelBloc = ctx.read<LevelBloc>();
+              // Only trigger if we're in cleared state
+              if (levelBloc.state.status == LevelStatus.cleared) {
+                levelBloc.add(const ExitReached());
+              }
+            },
           ),
-
-          // Game HUD Overlay
-          const GameHud(),
+          // React when all enemies die
+          BlocListener<WorldBloc, WorldState>(
+            listenWhen: (prev, curr) =>
+                !prev.isLevelCleared && curr.isLevelCleared,
+            listener: (ctx, _) {
+              ctx.read<LevelBloc>().add(const LevelCleared());
+            },
+          ),
         ],
+        child: BlocBuilder<LevelBloc, LevelState>(
+          builder: (context, levelState) {
+            return Stack(
+              children: [
+                // 1. The Game Engine (always in background)
+                GameWidget(
+                  game: _game,
+                  loadingBuilder: (_) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+
+                // 2. Game HUD Overlay
+                const GameHud(),
+
+                // 3. Level Transition Overlay
+                if (levelState.status == LevelStatus.transitioning)
+                  const LevelTransitionOverlay(),
+
+                // 4. Victory Screen
+                if (levelState.status == LevelStatus.victory)
+                  const VictoryScreen(),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

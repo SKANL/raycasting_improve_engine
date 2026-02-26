@@ -22,14 +22,14 @@ class TexturePacker {
         final cell = map.grid[y][x];
         final index = (y * width + x) * 4;
 
-        // R: Type
+        // R: Type (0=Empty, 1+=Wall, 5=Exit)
         buffer[index] = cell.type;
 
         // G: Floor Height (0.0 - 1.0 mapped to 0 - 255)
         buffer[index + 1] = (cell.floorHeight * 255).clamp(0, 255).toInt();
 
-        // B: Ceiling Height (0.0 - 1.0 mapped to 0 - 255)
-        buffer[index + 2] = (cell.ceilingHeight * 255).clamp(0, 255).toInt();
+        // B: Door/Exit state (0.0 = closed, 1.0 = fully open → 0..255)
+        buffer[index + 2] = (cell.doorState * 255).clamp(0, 255).toInt();
 
         // A: Texture ID
         buffer[index + 3] = cell.textureId;

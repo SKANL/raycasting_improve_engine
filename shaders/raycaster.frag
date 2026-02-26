@@ -145,10 +145,10 @@ void main() {
         }
 
         vec4 cellData = texture(uMap, mapUV);
-        if (cellData.r * 255.0 > 0.5) {
+        float cellType = floor(cellData.r * 255.0 + 0.1);
+        if (cellType > 0.5) {
             hit = true;
-            wallType = cellData.r * 255.0; 
-            wallType = floor(wallType + 0.1);
+            wallType = cellType;
             break;
         }
     }
@@ -162,11 +162,23 @@ void main() {
     }
     
     if (hit) {
+        // Read door/exit state from channel B (0.0=closed, 1.0=fully open)
+        vec2 hitMapUV = (mapPos + 0.5) / MAP_SIZE;
+        vec4 hitCellData = texture(uMap, hitMapUV);
+        float doorState = hitCellData.b; // 0.0 to 1.0
+
         float lineHeight = uResolution.y / perpWallDist;
         float drawStart = -lineHeight / 2.0 + uResolution.y / 2.0 + uPitch;
         float drawEnd = lineHeight / 2.0 + uResolution.y / 2.0 + uPitch;
-        
-        if (pos.y >= drawStart && pos.y <= drawEnd) {
+
+        // Apply retractable door: shift wall up by doorState * lineHeight
+        float raisedStart = drawStart - lineHeight * doorState;
+        float raisedEnd   = drawEnd   - lineHeight * doorState;
+
+        // Is exit cell? (wallType == 5.0)
+        bool isExit = (wallType > 4.5 && wallType < 5.5);
+
+        if (pos.y >= raisedStart && pos.y <= raisedEnd && doorState < 1.0) {
              // Wall Texture Calculation
              float wallX; 
              if (side == 0.0) {
@@ -182,7 +194,7 @@ void main() {
              if (side == 1.0 && rayDir.y < 0) texX = TILE_SIZE - texX - 1.0;
              
              // Simple linear mapping for Y with support for pitch
-             float texY = (pos.y - drawStart) / (drawEnd - drawStart) * TILE_SIZE;
+             float texY = (pos.y - raisedStart) / (raisedEnd - raisedStart) * TILE_SIZE;
              
              // Clamp texY
              texY = clamp(texY, 0.0, TILE_SIZE - 0.1);
@@ -199,9 +211,14 @@ void main() {
              );
              
              vec4 texColor = texture(uAtlas, atlasUV);
+
+             // Apply exit tint (golden glow for exit doors)
+             if (isExit) {
+                 texColor.rgb *= vec3(1.3, 1.0, 0.3);
+             }
              
-             // Apply lighting - Overridden for intense horror ambiance
-             vec3 lighting = vec3(0.01, 0.015, 0.02);
+             // Apply lighting - Medium horror ambiance
+             vec3 lighting = vec3(0.08, 0.10, 0.13);
              
              // Calculate world position of the specific wall pixel
              vec2 hitPos;
@@ -286,8 +303,8 @@ void main() {
              
              vec4 texColor = texture(uAtlas, atlasUV);
              
-             // Apply Lighting - Intense horror ambiance
-             vec3 lighting = vec3(0.01, 0.015, 0.02);
+             // Apply Lighting - Medium horror ambiance
+             vec3 lighting = vec3(0.08, 0.10, 0.13);
              
              // Add Point Lights (Optional: Shadows on floor are expensive, skipping for now)
              for (int i = 0; i < MAX_LIGHTS; i++) {
@@ -310,11 +327,10 @@ void main() {
 
              // Aggressive darkening before fog
              if (!isFloor) {
-                 lighting *= 0.45; // Make the ceiling slightly more visible but still dark
+                 lighting *= 0.70; // Ceiling – more readable
              } else {
-                 // Radial vignette effect based on rowDistance limits the floor view
-                 float floorVignette = clamp(1.0 - (rowDistance / 8.0), 0.2, 1.0);
-                 lighting *= (0.4 * floorVignette); // Darker mud floor
+                 float floorVignette = clamp(1.0 - (rowDistance / 10.0), 0.25, 1.0);
+                 lighting *= (0.65 * floorVignette); // Floor – slightly brighter
              }
              
              vec3 finalColor = texColor.rgb * lighting;

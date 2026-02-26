@@ -6,6 +6,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   GameBloc({required this.worldBloc}) : super(const GameState()) {
     on<GameStarted>(_onGameStarted);
     on<PlayerDamaged>(_onPlayerDamaged);
+    on<HealthRestored>(_onHealthRestored);
   }
 
   final WorldBloc worldBloc;
@@ -35,5 +36,10 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     // For now, assume success immediately for UI
     // In real app, we would listen to worldBloc.stream to switch to playing
     emit(state.copyWith(status: GameStatus.playing));
+  }
+
+  void _onHealthRestored(HealthRestored event, Emitter<GameState> emit) {
+    final newHealth = (state.health + event.amount).clamp(0, 100);
+    emit(state.copyWith(health: newHealth));
   }
 }

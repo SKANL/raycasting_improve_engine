@@ -44,6 +44,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     on<EntityDamaged>(_onEntityDamaged);
     on<PlayerFired>(_onPlayerFired);
     on<WorldTick>(_onWorldTick);
+    on<LevelCleanup>(_onLevelCleanup);
   }
 
   final AISystem _aiSystem = AISystem();
@@ -70,8 +71,8 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     if (width < 32) width = 32;
     if (height < 32) height = 32;
 
-    // 1. Generate Procedural Map
-    final map = MapGenerator.generate(width, height);
+    // 1. Generate Procedural Map (pass seed for reproducibility)
+    final map = MapGenerator.generate(width, height, seed: event.seed);
 
     // 2. Find valid spawn points
     // Collect all valid empty cells
@@ -741,6 +742,65 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       }
     }
 
+    // 11. Level Cleared Detection — check if all enemies are dead
+    var newIsLevelCleared = state.isLevelCleared;
+    var newExitDoorProgress = state.exitDoorProgress;
+    var newPlayerEnteredExit = state.playerEnteredExit;
+
+    if (!newIsLevelCleared && !isPlayerDead) {
+      final enemyEntities = updatedEntities.where(
+        (e) => e.getComponent<AIComponent>() != null,
+      );
+      final allDead =
+          enemyEntities.isNotEmpty &&
+          enemyEntities.every(
+            (e) => e.getComponent<AIComponent>()!.currentState == AIState.die,
+          );
+
+      if (allDead) {
+        newIsLevelCleared = true;
+        LogService.info('WORLD', 'LEVEL_CLEARED', {});
+      }
+    }
+
+    // 12. Animate exit door when level is cleared
+    if (newIsLevelCleared && newExitDoorProgress < 1.0 && state.map != null) {
+      newExitDoorProgress = (newExitDoorProgress + event.dt * 0.8).clamp(
+        0.0,
+        1.0,
+      );
+
+      final exitPos = state.map!.exitCellPosition;
+      if (exitPos != null) {
+        final currentCell = state.map!.getCell(exitPos.x, exitPos.y);
+        final updatedCell = currentCell.copyWith(
+          doorState: newExitDoorProgress,
+          // Mark physically passable once fully open
+          isSolid: newExitDoorProgress < 1.0,
+        );
+        // Update the map and rebuild the texture on the next CellChanged cycle.
+        // We do it directly here to avoid a nested async call inside update.
+        add(CellChanged(x: exitPos.x, y: exitPos.y, newCell: updatedCell));
+      }
+    }
+
+    // 13. Detect player entering exit
+    if (newIsLevelCleared &&
+        newExitDoorProgress >= 1.0 &&
+        !newPlayerEnteredExit &&
+        state.map?.exitCellPosition != null) {
+      final exitPos = state.map!.exitCellPosition!;
+      final playerPos = newPlayerPosition;
+      final dx = playerPos.x - (exitPos.x + 0.5);
+      final dy = playerPos.y - (exitPos.y + 0.5);
+      final distSq = dx * dx + dy * dy;
+      if (distSq < 0.64) {
+        // 0.8 units radius
+        newPlayerEnteredExit = true;
+        LogService.info('WORLD', 'PLAYER_ENTERED_EXIT', {});
+      }
+    }
+
     emit(
       state.copyWith(
         lights: updatedLights,
@@ -752,6 +812,9 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         effects: newEffects.isEmpty ? null : newEffects,
         playerInvulnerabilityTime: currentInvulnerability,
         status: isPlayerDead ? WorldStatus.gameOver : state.status,
+        isLevelCleared: newIsLevelCleared,
+        exitDoorProgress: newExitDoorProgress,
+        playerEnteredExit: newPlayerEnteredExit,
       ),
     );
   }
@@ -798,5 +861,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
       return e.copyWith(components: newComponents);
     }).toList();
+  }
+
+  /// Resets to a clean empty world.
+  /// Called before spawning the next level.
+  /// Note: We do NOT manually call `.dispose()` on mapTexture/atlasTexture
+  /// here because in Flutter Web (CanvasKit) the rasterizer may still have
+  /// them queued for the current frame, causing
+  /// 'The native object of SkImage was disposed' assertions.
+  /// We rely on the GC to clean them up once WorldState drops the references.
+  void _onLevelCleanup(LevelCleanup event, Emitter<WorldState> emit) {
+    // Immediately emit empty state to clear the world.
+    emit(WorldState.empty());
+    LogService.info('WORLD', 'LEVEL_CLEANUP_DONE', {});
   }
 }

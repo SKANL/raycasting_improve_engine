@@ -157,7 +157,7 @@ class RaycastRenderer extends PositionComponent
         playerDir: _latestState.playerDirection,
         fov: planeLen,
         pitch: config.pitch * 5.0,
-        fogDistance: 5.0,
+        fogDistance: 9.0,
         lights: lightData,
         lightCount: activeLights,
         mapTexture: mapTexture,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/view/widgets/minimap.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
@@ -58,11 +59,49 @@ class GameHud extends StatelessWidget {
           child: _HealthDisplay(),
         ),
 
-        // Top-right: Ammo counter
+        // Top-right: Level indicator + Ammo counter (vertical column)
         Positioned(
           top: 16,
           right: 16,
-          child: _AmmoDisplay(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Level indicator
+              BlocBuilder<LevelBloc, LevelState>(
+                buildWhen: (prev, curr) =>
+                    prev.currentLevel != curr.currentLevel,
+                builder: (context, levelState) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: const Color(0x60FFD700),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      'NIVEL ${levelState.currentLevel}',
+                      style: const TextStyle(
+                        color: Color(0xFFFFD700),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              // Ammo counter
+              _AmmoDisplay(),
+            ],
+          ),
         ),
 
         // Center: Crosshair
@@ -80,6 +119,9 @@ class GameHud extends StatelessWidget {
             },
           ),
         ),
+
+        // Exit-open announcement banner
+        _ExitOpenBanner(),
 
         // Game Over Overlay
         BlocBuilder<WorldBloc, WorldState>(
@@ -383,4 +425,115 @@ class _CrosshairPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Pulsing banner that appears for ~4 seconds when all enemies are killed.
+class _ExitOpenBanner extends StatefulWidget {
+  @override
+  State<_ExitOpenBanner> createState() => _ExitOpenBannerState();
+}
+
+class _ExitOpenBannerState extends State<_ExitOpenBanner>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseCtrl;
+  late Animation<double> _pulse;
+  bool _visible = false;
+  bool _cleared = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _pulse = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<WorldBloc, WorldState>(
+      listenWhen: (prev, curr) => !prev.isLevelCleared && curr.isLevelCleared,
+      listener: (_, __) async {
+        if (!mounted) return;
+        setState(() {
+          _visible = true;
+          _cleared = true;
+        });
+        await Future<void>.delayed(const Duration(seconds: 4));
+        if (mounted) setState(() => _visible = false);
+      },
+      child: AnimatedOpacity(
+        opacity: _visible ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 400),
+        child: _cleared
+            ? Positioned(
+                bottom: 80,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ScaleTransition(
+                    scale: _pulse,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFFFFD700),
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0x60FFD700),
+                            blurRadius: 24,
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.door_back_door_outlined,
+                            color: Color(0xFFFFD700),
+                            size: 20,
+                          ),
+                          SizedBox(width: 10),
+                          Text(
+                            '¡SALIDA ABIERTA!',
+                            style: TextStyle(
+                              color: Color(0xFFFFD700),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Icon(
+                            Icons.door_back_door_outlined,
+                            color: Color(0xFFFFD700),
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
 }

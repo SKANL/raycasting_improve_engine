@@ -30,3 +30,12 @@ class PlayerDamaged extends GameEvent {
   @override
   List<Object> get props => [amount];
 }
+
+/// Fired during level transition to restore health (+10 HP per level).
+class HealthRestored extends GameEvent {
+  const HealthRestored(this.amount);
+  final int amount;
+
+  @override
+  List<Object> get props => [amount];
+}
