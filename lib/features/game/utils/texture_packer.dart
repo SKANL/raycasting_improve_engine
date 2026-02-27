@@ -18,6 +18,10 @@ class TexturePacker {
     final buffer = Uint8List(width * height * 4);
 
     for (var y = 0; y < height; y++) {
+      // Yield to the event loop every 8 rows to keep 60 FPS on Web
+      if (y > 0 && y % 8 == 0) {
+        await Future<void>.delayed(Duration.zero);
+      }
       for (var x = 0; x < width; x++) {
         final cell = map.grid[y][x];
         final index = (y * width + x) * 4;

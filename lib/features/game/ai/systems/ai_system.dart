@@ -76,10 +76,31 @@ class AISystem {
     GameMap? map,
     List<GameEntity> allEntities,
   ) {
-    // if (ai.currentState == AIState.die) {
-    //   // We want to fall through to Animation Sync so the 'die' animation plays
-    //   // But we don't want to run logic (Chase/Attack)
-    // }
+    // --- DEATH OPTIMIZATION ---
+    // Dead entities should NOT compute Line-of-sight nor Math Distances.
+    // They are just visual corpses fading/animating.
+    if (ai.currentState == AIState.die) {
+      bool animChangedLocally = false;
+      var newAnimLocally = entity.getComponent<AnimationComponent>();
+      if (newAnimLocally != null && newAnimLocally.currentState != 'die') {
+        newAnimLocally = newAnimLocally.copyWith(
+          currentState: 'die',
+          currentFrame: 0,
+          timer: 0,
+        );
+        animChangedLocally = true;
+      }
+
+      if (animChangedLocally) {
+        return AIUpdateResult(
+          entityId: entity.id,
+          newTransform: transform,
+          newAI: ai,
+          newAnim: newAnimLocally,
+        );
+      }
+      return null;
+    }
 
     final distToPlayer = (playerPosition - transform.position).length;
     final hasLOS = PhysicsSystem.hasLineOfSight(
@@ -113,16 +134,7 @@ class AISystem {
         ? now.difference(ai.lastAttackTime!).inMilliseconds / 1000.0
         : 999.0;
 
-    if (entity.id == 'enemy_1') {
-      LogService.info('AI', 'CheckLOS', {
-        'id': entity.id,
-        'dist': distToPlayer.toStringAsFixed(2),
-        'hasLOS': hasLOS,
-        'state': ai.currentState.toString(),
-        'cooldown': timeSinceAttack.toStringAsFixed(1),
-        'rng': ai.attackRange,
-      });
-    }
+    // Removed CheckLOS 60fps logs
 
     switch (ai.currentState) {
       // 1. IDLE: Wait for player to be seen
@@ -313,14 +325,6 @@ class AISystem {
         animChanged ||
         damageDealt > 0 ||
         spawnedProjectiles.isNotEmpty) {
-      if (entity.id == 'enemy_1') {
-        LogService.info('AI', 'RESULT', {
-          'state': newAI.currentState.toString(),
-          'anim': newAnim?.currentState ?? 'null',
-          'pos': newTransform.position.y.toStringAsFixed(2),
-        });
-      }
-
       return AIUpdateResult(
         entityId: entity.id,
         newTransform: newTransform,

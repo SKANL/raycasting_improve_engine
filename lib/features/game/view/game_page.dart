@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
-import 'package:raycasting_game/features/core/level/view/level_transition_overlay.dart';
 import 'package:raycasting_game/features/core/level/view/victory_screen.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
@@ -57,61 +56,38 @@ class _GameViewState extends State<GameView> {
       inputBloc: context.read<InputBloc>(),
       perspectiveBloc: context.read<PerspectiveBloc>(),
       weaponBloc: context.read<WeaponBloc>(),
+      levelBloc: context.read<LevelBloc>(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: MultiBlocListener(
-        listeners: [
-          // React when player enters the exit
-          BlocListener<WorldBloc, WorldState>(
-            listenWhen: (prev, curr) =>
-                !prev.playerEnteredExit && curr.playerEnteredExit,
-            listener: (ctx, _) {
-              final levelBloc = ctx.read<LevelBloc>();
-              // Only trigger if we're in cleared state
-              if (levelBloc.state.status == LevelStatus.cleared) {
-                levelBloc.add(const ExitReached());
-              }
-            },
-          ),
-          // React when all enemies die
-          BlocListener<WorldBloc, WorldState>(
-            listenWhen: (prev, curr) =>
-                !prev.isLevelCleared && curr.isLevelCleared,
-            listener: (ctx, _) {
-              ctx.read<LevelBloc>().add(const LevelCleared());
-            },
-          ),
-        ],
-        child: BlocBuilder<LevelBloc, LevelState>(
-          builder: (context, levelState) {
-            return Stack(
-              children: [
-                // 1. The Game Engine (always in background)
-                GameWidget(
-                  game: _game,
-                  loadingBuilder: (_) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+      body: BlocBuilder<LevelBloc, LevelState>(
+        // CRITICAL: solo reconstruir cuando el status cambia (ej. victory).
+        // Sin buildWhen, SurvivalTick hace que Flutter reconstruya el GameWidget
+        // 60 veces/s, lo que hace que pierda el foco del teclado.
+        buildWhen: (prev, curr) => prev.status != curr.status,
+        builder: (context, levelState) {
+          return Stack(
+            children: [
+              // 1. The Game Engine (always in background)
+              GameWidget(
+                game: _game,
+                loadingBuilder: (_) => const Center(
+                  child: CircularProgressIndicator(),
                 ),
+              ),
 
-                // 2. Game HUD Overlay
-                const GameHud(),
+              // 2. Game HUD Overlay
+              const GameHud(),
 
-                // 3. Level Transition Overlay
-                if (levelState.status == LevelStatus.transitioning)
-                  const LevelTransitionOverlay(),
-
-                // 4. Victory Screen
-                if (levelState.status == LevelStatus.victory)
-                  const VictoryScreen(),
-              ],
-            );
-          },
-        ),
+              // 3. Victory Screen (when player survives 2 minutes)
+              if (levelState.status == LevelStatus.victory)
+                const VictoryScreen(),
+            ],
+          );
+        },
       ),
     );
   }

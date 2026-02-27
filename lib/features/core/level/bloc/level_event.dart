@@ -13,22 +13,21 @@ final class LevelStarted extends LevelEvent {
   const LevelStarted();
 }
 
-/// Fired by WorldBloc listener when all enemies are dead.
-final class LevelCleared extends LevelEvent {
-  const LevelCleared();
+/// Fired every frame to decrement the survival timer.
+final class SurvivalTick extends LevelEvent {
+  const SurvivalTick(this.dt);
+  final double dt;
+
+  @override
+  List<Object?> get props => [dt];
 }
 
-/// Fired when the player physically enters the exit cell.
-final class ExitReached extends LevelEvent {
-  const ExitReached();
+/// Fired by WorldBloc listener when an enemy dies.
+final class EnemyKilledRegistered extends LevelEvent {
+  const EnemyKilledRegistered();
 }
 
-/// Fired by [LevelTransitionOverlay] once the new world is loaded.
-final class LevelTransitionComplete extends LevelEvent {
-  const LevelTransitionComplete();
-}
-
-/// Fired from the victory screen — resets to level 1.
-final class GameRestarted extends LevelEvent {
-  const GameRestarted();
+/// Fired from the victory or death screen — resets the game.
+final class SurvivalRestarted extends LevelEvent {
+  const SurvivalRestarted();
 }

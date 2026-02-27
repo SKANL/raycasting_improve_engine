@@ -23,9 +23,6 @@ class WorldState extends Equatable {
     this.isPlayerDead = false,
     this.projectiles = const [],
     this.playerInvulnerabilityTime = 0.0,
-    this.isLevelCleared = false,
-    this.exitDoorProgress = 0.0,
-    this.playerEnteredExit = false,
   });
 
   /// Creates an empty initial state.
@@ -82,18 +79,6 @@ class WorldState extends Equatable {
   /// Time in seconds remaining for player invulnerability.
   final double playerInvulnerabilityTime;
 
-  /// True once all enemies of the level have been killed.
-  /// Triggers the exit door opening animation.
-  final bool isLevelCleared;
-
-  /// Exit door animation progress (0.0 = closed, 1.0 = fully open).
-  /// Animated each WorldTick at 0.8 units/sec once isLevelCleared is true.
-  final double exitDoorProgress;
-
-  /// True when the player steps into the open exit cell.
-  /// Consumed by LevelBloc to trigger level transition.
-  final bool playerEnteredExit;
-
   /// Default spawn position if playerPosition is null.
   static final _defaultPosition = Vector2(1.5, 1.5);
 
@@ -119,9 +104,6 @@ class WorldState extends Equatable {
     bool? isPlayerDead,
     List<Projectile>? projectiles,
     double? playerInvulnerabilityTime,
-    bool? isLevelCleared,
-    double? exitDoorProgress,
-    bool? playerEnteredExit,
   }) {
     return WorldState(
       status: status ?? this.status,
@@ -142,9 +124,6 @@ class WorldState extends Equatable {
       projectiles: projectiles ?? this.projectiles,
       playerInvulnerabilityTime:
           playerInvulnerabilityTime ?? this.playerInvulnerabilityTime,
-      isLevelCleared: isLevelCleared ?? this.isLevelCleared,
-      exitDoorProgress: exitDoorProgress ?? this.exitDoorProgress,
-      playerEnteredExit: playerEnteredExit ?? this.playerEnteredExit,
     );
   }
 
@@ -167,9 +146,6 @@ class WorldState extends Equatable {
     isPlayerDead,
     projectiles,
     playerInvulnerabilityTime,
-    isLevelCleared,
-    exitDoorProgress,
-    playerEnteredExit,
   ];
 }
 

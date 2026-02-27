@@ -14,10 +14,10 @@ import 'dart:io'; // For Platform check
 import 'package:raycasting_game/features/core/input/action_mapper.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/input/models/game_action.dart';
+import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
-// DamageFlashComponent removed — vignette is handled by game_hud.dart Flutter layer
 import 'package:raycasting_game/features/game/render/raycast_renderer.dart';
 import 'package:raycasting_game/features/game/render/shader_manager.dart';
 import 'package:raycasting_game/features/game/systems/physics_system.dart';
@@ -31,6 +31,7 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     required this.inputBloc,
     required this.perspectiveBloc,
     required this.weaponBloc,
+    required this.levelBloc,
   }) : super();
 
   final GameBloc gameBloc;
@@ -38,6 +39,7 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   final InputBloc inputBloc;
   final PerspectiveBloc perspectiveBloc;
   final WeaponBloc weaponBloc;
+  final LevelBloc levelBloc;
 
   RaycastRenderer? _renderer;
   // DamageFlashComponent removed — see game_hud.dart
@@ -104,7 +106,8 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
         for (final effect in worldState.effects) {
           if (effect is PlayerDamagedEffect) {
             gameBloc.add(PlayerDamaged(effect.amount));
-            // Vignette flash is now handled purely by game_hud.dart via BLoC state
+          } else if (effect is EnemyKilledEffect) {
+            levelBloc.add(const EnemyKilledRegistered());
           }
         }
       }
@@ -179,19 +182,12 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   void update(double dt) {
     super.update(dt);
 
-    // Only tick world if player is alive (or pause simulation)
-    // Actually, maybe we want to keep ticking for death animation?
-    // But we stop input.
+    // Tick the survival timer every frame
+    levelBloc.add(SurvivalTick(dt));
+
+    worldBloc.add(WorldTick(dt));
     if (!worldBloc.state.isPlayerDead) {
-      worldBloc.add(WorldTick(dt));
       _processInput(dt);
-    } else {
-      // Continue generic world tick (logic) but maybe not player input
-      // If we stop WorldTick, animations stop.
-      // Let's keep ticking world so death animation plays/fades?
-      // But we said we want to stop "game".
-      // Let's just block input for now.
-      worldBloc.add(WorldTick(dt));
     }
   }
 

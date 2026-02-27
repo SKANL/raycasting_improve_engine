@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/core/ecs/components/transform_component.dart';
+import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
 
 import 'dart:math' as math;
 
@@ -94,7 +95,7 @@ class _MiniMapPainter extends CustomPainter {
 
     // Draw Floor/Background (optional)
 
-    // Draw Walls
+    // Draw Walls and Exit
     for (var y = startY; y < endY; y++) {
       for (var x = startX; x < endX; x++) {
         final cell = map.grid[y][x];
@@ -114,6 +115,10 @@ class _MiniMapPainter extends CustomPainter {
       // Don't draw player (we draw ourselves at center later)
       // Player entity might not be in entities list or might be special
       if (entity.id == 'player') continue;
+
+      // Filter out dead enemies
+      final ai = entity.getComponent<AIComponent>();
+      if (ai != null && ai.currentState == AIState.die) continue;
 
       final transform = entity.getComponent<TransformComponent>();
       if (transform != null) {

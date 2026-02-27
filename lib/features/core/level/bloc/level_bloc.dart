@@ -8,60 +8,58 @@ part 'level_state.dart';
 
 class LevelBloc extends Bloc<LevelEvent, LevelState> {
   LevelBloc() : super(const LevelState()) {
-    on<LevelStarted>(_onLevelStarted);
-    on<LevelCleared>(_onLevelCleared);
-    on<ExitReached>(_onExitReached);
-    on<LevelTransitionComplete>(_onLevelTransitionComplete);
-    on<GameRestarted>(_onGameRestarted);
+    on<LevelStarted>(_onSurvivalStarted);
+    on<SurvivalTick>(_onSurvivalTick);
+    on<EnemyKilledRegistered>(_onEnemyKilledRegistered);
+    on<SurvivalRestarted>(_onSurvivalRestarted);
   }
 
-  void _onLevelStarted(LevelStarted event, Emitter<LevelState> emit) {
+  void _onSurvivalStarted(LevelStarted event, Emitter<LevelState> emit) {
     final seed = Random().nextInt(1 << 30);
     emit(
       state.copyWith(
-        currentLevel: 1,
         status: LevelStatus.playing,
+        timeRemaining: 120.0,
+        enemiesKilled: 0,
         sessionSeed: seed,
       ),
     );
   }
 
-  void _onLevelCleared(LevelCleared event, Emitter<LevelState> emit) {
+  void _onSurvivalTick(SurvivalTick event, Emitter<LevelState> emit) {
     if (state.status != LevelStatus.playing) return;
-    emit(state.copyWith(status: LevelStatus.cleared));
-  }
 
-  void _onExitReached(ExitReached event, Emitter<LevelState> emit) {
-    if (state.status != LevelStatus.cleared) return;
-    emit(state.copyWith(status: LevelStatus.transitioning));
-  }
+    final newTime = (state.timeRemaining - event.dt).clamp(0.0, 120.0);
 
-  void _onLevelTransitionComplete(
-    LevelTransitionComplete event,
-    Emitter<LevelState> emit,
-  ) {
-    if (state.status != LevelStatus.transitioning) return;
-
-    final nextLevel = state.currentLevel + 1;
-
-    if (nextLevel > LevelState.maxLevel) {
-      emit(state.copyWith(status: LevelStatus.victory));
-    } else {
+    // Victoria: timer llegó a 0
+    if (newTime <= 0) {
       emit(
         state.copyWith(
-          currentLevel: nextLevel,
-          status: LevelStatus.playing,
+          timeRemaining: 0,
+          status: LevelStatus.victory,
         ),
       );
+      return;
     }
+
+    emit(state.copyWith(timeRemaining: newTime));
   }
 
-  void _onGameRestarted(GameRestarted event, Emitter<LevelState> emit) {
+  void _onEnemyKilledRegistered(
+    EnemyKilledRegistered event,
+    Emitter<LevelState> emit,
+  ) {
+    if (state.status != LevelStatus.playing) return;
+    emit(state.copyWith(enemiesKilled: state.enemiesKilled + 1));
+  }
+
+  void _onSurvivalRestarted(SurvivalRestarted event, Emitter<LevelState> emit) {
     final seed = Random().nextInt(1 << 30);
     emit(
       state.copyWith(
-        currentLevel: 1,
         status: LevelStatus.playing,
+        timeRemaining: 120.0,
+        enemiesKilled: 0,
         sessionSeed: seed,
       ),
     );

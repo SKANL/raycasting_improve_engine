@@ -5,7 +5,7 @@ import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/bloc/bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Full-screen victory screen displayed after completing all 6 levels.
+/// Full-screen victory screen displayed after surviving 2 minutes.
 class VictoryScreen extends StatefulWidget {
   const VictoryScreen({super.key});
 
@@ -48,10 +48,10 @@ class _VictoryScreenState extends State<VictoryScreen>
     worldBloc.add(const LevelCleanup());
     // Reset health
     gameBloc.add(const HealthRestored(100));
-    // Restart level progression
-    levelBloc.add(const GameRestarted());
-    // Generate level 1
-    final seed = levelBloc.state.sessionSeed + 1;
+    // Reset survival timer and kills
+    levelBloc.add(const SurvivalRestarted());
+    // Generate fresh arena with a new seed
+    final seed = levelBloc.state.sessionSeed;
     worldBloc.add(WorldInitialized(width: 32, height: 32, seed: seed));
   }
 
@@ -88,12 +88,12 @@ class _VictoryScreenState extends State<VictoryScreen>
 
                   // Main Title
                   Text(
-                    '¡ESCAPASTE!',
+                    '¡SOBREVIVISTE!',
                     style: GoogleFonts.outfit(
-                      fontSize: 56,
+                      fontSize: 48,
                       fontWeight: FontWeight.w900,
                       color: const Color(0xFFFFD700),
-                      letterSpacing: 8,
+                      letterSpacing: 6,
                       shadows: [
                         const Shadow(
                           color: Color(0xFFFFCC00),
@@ -127,7 +127,7 @@ class _VictoryScreenState extends State<VictoryScreen>
                   const SizedBox(height: 16),
 
                   Text(
-                    'Has completado los 6 niveles del dungeon.',
+                    'Sobreviviste 2 minutos en la dungeon.',
                     style: GoogleFonts.outfit(
                       fontSize: 18,
                       color: Colors.white60,

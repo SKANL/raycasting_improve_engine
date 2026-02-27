@@ -294,6 +294,10 @@ class PhysicsSystem {
       // Skip decorative fixtures — projectiles pass through them.
       if (entity.id.startsWith('fixture_')) continue;
 
+      // Skip dead enemies - Corpses shouldn't block bullets
+      final enemyAI = entity.getComponent<AIComponent>();
+      if (enemyAI != null && enemyAI.currentState == AIState.die) continue;
+
       final transform = entity.getComponent<TransformComponent>();
       if (transform == null) continue;
 

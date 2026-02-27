@@ -8,50 +8,49 @@ enum LevelStatus {
   /// Level is actively being played.
   playing,
 
-  /// All enemies killed — exit open, waiting for player to enter.
-  cleared,
-
-  /// Player entered exit — fade-out and world reload in progress.
-  transitioning,
-
-  /// Player completed level 6.
+  /// Player survived the time limit.
   victory,
 }
 
 class LevelState extends Equatable {
   const LevelState({
     this.status = LevelStatus.initial,
-    this.currentLevel = 1,
+    this.timeRemaining = 120.0,
+    this.enemiesKilled = 0,
     this.sessionSeed = 0,
   });
-
-  /// Current level number (1–6).
-  final int currentLevel;
 
   /// Progression status.
   final LevelStatus status;
 
-  /// Base seed for this play-through. Each level uses (sessionSeed + currentLevel).
+  /// Time remaining in seconds for survival mode.
+  final double timeRemaining;
+
+  /// Number of enemies killed during this session.
+  final int enemiesKilled;
+
+  /// Base seed for this play-through.
   final int sessionSeed;
 
-  /// Total number of levels in the game.
-  static const int maxLevel = 6;
-
-  /// Seed to use for the current level generation.
-  int get levelSeed => sessionSeed + currentLevel;
-
   LevelState copyWith({
-    int? currentLevel,
     LevelStatus? status,
+    double? timeRemaining,
+    int? enemiesKilled,
     int? sessionSeed,
   }) {
     return LevelState(
-      currentLevel: currentLevel ?? this.currentLevel,
       status: status ?? this.status,
+      timeRemaining: timeRemaining ?? this.timeRemaining,
+      enemiesKilled: enemiesKilled ?? this.enemiesKilled,
       sessionSeed: sessionSeed ?? this.sessionSeed,
     );
   }
 
   @override
-  List<Object?> get props => [currentLevel, status, sessionSeed];
+  List<Object?> get props => [
+    status,
+    timeRemaining,
+    enemiesKilled,
+    sessionSeed,
+  ];
 }

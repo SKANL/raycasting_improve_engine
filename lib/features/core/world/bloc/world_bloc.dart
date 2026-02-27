@@ -47,6 +47,13 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     on<LevelCleanup>(_onLevelCleanup);
   }
 
+  // --- Survival Mode: Spawn Timer ---
+  double _spawnTimer = 0.0;
+  int _enemyCounter = 0;
+  static const double _spawnInterval = 5.0;
+  static const int _maxAliveEnemies = 10;
+  static const double _corpseLifetime = 3.0;
+
   final AISystem _aiSystem = AISystem();
   final AnimationSystem _animationSystem = AnimationSystem();
 
@@ -71,7 +78,14 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     if (width < 32) width = 32;
     if (height < 32) height = 32;
 
+    // Yield to the event loop here. This is CRITICAL for UX:
+    // It allows the incoming 'loading' state to actually render on the screen
+    // (e.g., the LevelTransitionOverlay fade-in) before we freeze the main
+    // thread with heavy synchronous procedural generation algorithms.
+    await Future<void>.delayed(const Duration(milliseconds: 32));
+
     // 1. Generate Procedural Map (pass seed for reproducibility)
+    // Removed Isolate.run because dart:isolate is unsupported on Flutter Web.
     final map = MapGenerator.generate(width, height, seed: event.seed);
 
     // 2. Find valid spawn points
@@ -99,114 +113,25 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         ? Vector2(map.roomRects.first.centerX, map.roomRects.first.centerY)
         : (validCells.isNotEmpty ? validCells.removeAt(0) : Vector2(1.5, 1.5));
 
-    // 2.2 Spawn Enemies — [FIX-B1+B2]
-    //   Phase 1: collect room centers that are far enough from player spawn.
-    //   Phase 2: take exactly min(5, candidates) — no while loop, no risk of
-    //            infinite iteration.
-    const maxEnemies = 5;
-    const minSpawnDist = 5.0;
-
-    final enemyCandidates =
-        map.roomRects
-            .skip(1) // skip the player's room
-            .map(
-              (r) => Vector2(r.centerX, r.centerY),
-            )
-            .where((pos) => pos.distanceTo(spawn) >= minSpawnDist)
-            .toList()
-          ..shuffle();
-
-    final spawnCount = math.min(maxEnemies, enemyCandidates.length);
-
-    final entities = <GameEntity>[];
-
-    for (var i = 0; i < spawnCount; i++) {
-      final pos = enemyCandidates[i];
-
-      final transform = TransformComponent(position: pos);
-      const render = RenderComponent(spritePath: 'enemy_grunt');
-      const health = HealthComponent(current: 40, max: 40);
-      final ai = AIComponent(
-        detectionRange: 8,
-        attackRange: 2,
-        moveSpeed: 1.5,
-      );
-
-      // Define Animations (Assuming 32x32 Grid in Atlas)
-      // Row 0: Idle
-      // Row 1: Walk
-      // Row 2: Attack
-      // Row 3: Pain
-      final animations = {
-        'idle': const AnimationState(
-          name: 'idle',
-          frames: [
-            ui.Rect.fromLTWH(0, 0, 32, 32),
-            ui.Rect.fromLTWH(32, 0, 32, 32),
-          ],
-          frameDuration: 0.5,
-        ),
-        'walk': const AnimationState(
-          name: 'walk',
-          frames: [
-            ui.Rect.fromLTWH(0, 32, 32, 32),
-            ui.Rect.fromLTWH(32, 32, 32, 32),
-          ],
-          frameDuration: 0.25,
-        ),
-        'attack': const AnimationState(
-          name: 'attack',
-          frames: [
-            ui.Rect.fromLTWH(0, 64, 32, 32),
-            ui.Rect.fromLTWH(32, 64, 32, 32),
-          ],
-          frameDuration: 0.1, // Fast attack
-          loop: true,
-        ),
-        'pain': const AnimationState(
-          name: 'pain',
-          frames: [ui.Rect.fromLTWH(0, 96, 32, 32)],
-          frameDuration: 0.5,
-        ),
-        'die': const AnimationState(
-          name: 'die',
-          frames: [
-            ui.Rect.fromLTWH(0, 96, 32, 32), // Pain frame
-            ui.Rect.fromLTWH(32, 96, 32, 32), // Dead frame
-          ],
-          frameDuration: 0.2,
-          loop: false,
-        ),
-      };
-
-      final anim = AnimationComponent(
-        animations: animations,
-        currentState: 'idle',
-      );
-
-      entities.add(
-        GameEntity(
-          id: 'enemy_${i + 1}',
-          components: [transform, render, health, ai, anim],
-        ),
-      );
-
-      LogService.info('WORLD', 'ENEMY_SPAWNED', {
-        'id': 'enemy_${i + 1}',
-        'pos': '(${pos.x.toStringAsFixed(1)}, ${pos.y.toStringAsFixed(1)})',
-      });
-    }
-
-    LogService.info('WORLD', 'SPAWN_COMPLETE', {
-      'enemies': spawnCount,
+    LogService.info('WORLD', 'ARENA_INITIALIZED', {
       'rooms': map.roomRects.length,
     });
 
-    // 3. Generate Textures (Keep original step 3 here)
+    // 3. Generate Textures with Event Loop Yielding
+    // We add small delays (yields) between heavy computations to allow
+    // the Flutter framework to render the loading screen overlay at 60fps
+    // without starving the main UI thread.
     final mapTexture = await TexturePacker.packMap(map);
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+
     final textureAtlas = await TextureGenerator.generateAtlas();
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+
     final spriteAtlas = await TextureGenerator.generateSpriteAtlas();
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+
     final weaponAtlas = await TextureGenerator.generateWeaponAtlas();
+    await Future<void>.delayed(const Duration(milliseconds: 16));
 
     LogService.info('WORLD', 'TEXTURES_GENERATED', {
       'mapTexture': true,
@@ -238,7 +163,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         textureAtlas: textureAtlas,
         spriteAtlas: spriteAtlas,
         weaponAtlas: weaponAtlas,
-        entities: entities,
+        entities: const [],
         lights: lights,
         playerPosition: spawn,
         playerDirection: 0,
@@ -522,7 +447,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       state.copyWith(
         projectiles: newProjectiles,
         entities: updatedEntities,
-        effects: newEffects.isNotEmpty ? newEffects : null,
+        effects: newEffects,
       ),
     );
   }
@@ -547,10 +472,15 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       state.playerInvulnerabilityTime - event.dt,
     );
 
-    // 2. AI Update
+    // 2. AI Update — ONLY update alive enemies to save CPU on dead ones
+    final liveEntities = state.entities
+        .where(
+          (e) => e.getComponent<AIComponent>()?.currentState != AIState.die,
+        )
+        .toList(growable: false);
     final aiUpdates = _aiSystem.update(
       event.dt,
-      state.entities,
+      liveEntities, // <-- skip dead enemies
       state.effectivePosition,
       state.map,
     );
@@ -589,7 +519,10 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     }
 
     // 5. Apply Damage to Entities
-    var updatedEntities = List<GameEntity>.from(state.entities);
+    // Only copy the list if there's actual damage to apply (saves allocation)
+    var updatedEntities = damageMap.isNotEmpty
+        ? List<GameEntity>.from(state.entities)
+        : state.entities.toList(); // still need a mutable list for AI updates
     final damageResults = DamageSystem.apply(
       updatedEntities,
       damageMap,
@@ -599,13 +532,6 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // 6. Apply AI State Updates (Movement/Anim)
     // We do this BEFORE applying damage results so that damage/death states override movement
     for (final update in aiUpdates) {
-      if (update.entityId == 'enemy_1') {
-        LogService.info('WORLD', 'APPLY', {
-          'state': update.newAI.currentState.toString(),
-          'anim': update.newAnim?.currentState ?? 'null',
-        });
-      }
-
       final index = updatedEntities.indexWhere((e) => e.id == update.entityId);
       if (index >= 0) {
         final entity = updatedEntities[index];
@@ -742,62 +668,39 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       }
     }
 
-    // 11. Level Cleared Detection — check if all enemies are dead
-    var newIsLevelCleared = state.isLevelCleared;
-    var newExitDoorProgress = state.exitDoorProgress;
-    var newPlayerEnteredExit = state.playerEnteredExit;
+    // 11. Survival Spawn: purge corpses and spawn new enemies
+    _spawnTimer += event.dt;
 
-    if (!newIsLevelCleared && !isPlayerDead) {
-      final enemyEntities = updatedEntities.where(
-        (e) => e.getComponent<AIComponent>() != null,
-      );
-      final allDead =
-          enemyEntities.isNotEmpty &&
-          enemyEntities.every(
-            (e) => e.getComponent<AIComponent>()!.currentState == AIState.die,
-          );
+    // Purge corpses dead for > _corpseLifetime seconds (O(n) on ≤10 enemies)
+    final now = DateTime.now();
+    updatedEntities = updatedEntities.where((e) {
+      final ai = e.getComponent<AIComponent>();
+      if (ai == null || ai.currentState != AIState.die) return true;
+      if (ai.lastStateChange == null)
+        return false; // dead but no timestamp → purge
+      final deadFor =
+          now.difference(ai.lastStateChange!).inMilliseconds / 1000.0;
+      return deadFor < _corpseLifetime;
+    }).toList();
 
-      if (allDead) {
-        newIsLevelCleared = true;
-        LogService.info('WORLD', 'LEVEL_CLEARED', {});
-      }
-    }
+    // Spawn new enemy if timer elapsed and alive count < 10
+    if (_spawnTimer >= _spawnInterval && !isPlayerDead) {
+      _spawnTimer = 0.0;
+      final aliveCount = updatedEntities
+          .where(
+            (e) => e.getComponent<AIComponent>()?.currentState != AIState.die,
+          )
+          .length;
 
-    // 12. Animate exit door when level is cleared
-    if (newIsLevelCleared && newExitDoorProgress < 1.0 && state.map != null) {
-      newExitDoorProgress = (newExitDoorProgress + event.dt * 0.8).clamp(
-        0.0,
-        1.0,
-      );
-
-      final exitPos = state.map!.exitCellPosition;
-      if (exitPos != null) {
-        final currentCell = state.map!.getCell(exitPos.x, exitPos.y);
-        final updatedCell = currentCell.copyWith(
-          doorState: newExitDoorProgress,
-          // Mark physically passable once fully open
-          isSolid: newExitDoorProgress < 1.0,
-        );
-        // Update the map and rebuild the texture on the next CellChanged cycle.
-        // We do it directly here to avoid a nested async call inside update.
-        add(CellChanged(x: exitPos.x, y: exitPos.y, newCell: updatedCell));
-      }
-    }
-
-    // 13. Detect player entering exit
-    if (newIsLevelCleared &&
-        newExitDoorProgress >= 1.0 &&
-        !newPlayerEnteredExit &&
-        state.map?.exitCellPosition != null) {
-      final exitPos = state.map!.exitCellPosition!;
-      final playerPos = newPlayerPosition;
-      final dx = playerPos.x - (exitPos.x + 0.5);
-      final dy = playerPos.y - (exitPos.y + 0.5);
-      final distSq = dx * dx + dy * dy;
-      if (distSq < 0.64) {
-        // 0.8 units radius
-        newPlayerEnteredExit = true;
-        LogService.info('WORLD', 'PLAYER_ENTERED_EXIT', {});
+      if (aliveCount < _maxAliveEnemies && state.map != null) {
+        final newEnemy = _createSurvivalEnemy(state.map!, newPlayerPosition);
+        if (newEnemy != null) {
+          updatedEntities = [...updatedEntities, newEnemy];
+          LogService.info('WORLD', 'SURVIVAL_SPAWN', {
+            'id': newEnemy.id,
+            'alive': aliveCount + 1,
+          });
+        }
       }
     }
 
@@ -809,13 +712,101 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         playerHealth: newPlayerHealth,
         isPlayerDead: isPlayerDead,
         playerPosition: newPlayerPosition,
-        effects: newEffects.isEmpty ? null : newEffects,
+        effects: newEffects,
         playerInvulnerabilityTime: currentInvulnerability,
         status: isPlayerDead ? WorldStatus.gameOver : state.status,
-        isLevelCleared: newIsLevelCleared,
-        exitDoorProgress: newExitDoorProgress,
-        playerEnteredExit: newPlayerEnteredExit,
       ),
+    );
+  }
+
+  /// Creates a new enemy for survival mode, preferring rooms far from the player.
+  GameEntity? _createSurvivalEnemy(GameMap map, Vector2 playerPos) {
+    const minDist = 6.0;
+    _enemyCounter++;
+
+    // Prefer rooms far from player
+    final candidateRooms =
+        map.roomRects
+            .where(
+              (r) =>
+                  Vector2(r.centerX, r.centerY).distanceTo(playerPos) >=
+                  minDist,
+            )
+            .toList()
+          ..shuffle();
+
+    Vector2? spawnPos;
+    if (candidateRooms.isNotEmpty) {
+      final room = candidateRooms.first;
+      spawnPos = Vector2(room.centerX, room.centerY);
+    } else {
+      // Fallback: any empty cell not occupied by player
+      for (var y = 1; y < map.height - 1; y++) {
+        for (var x = 1; x < map.width - 1; x++) {
+          if (!map.grid[y][x].isSolid) {
+            final p = Vector2(x + 0.5, y + 0.5);
+            if (p.distanceTo(playerPos) >= minDist) {
+              spawnPos = p;
+              break;
+            }
+          }
+        }
+        if (spawnPos != null) break;
+      }
+    }
+    if (spawnPos == null) return null;
+
+    final animations = {
+      'idle': const AnimationState(
+        name: 'idle',
+        frames: [
+          ui.Rect.fromLTWH(0, 0, 32, 32),
+          ui.Rect.fromLTWH(32, 0, 32, 32),
+        ],
+        frameDuration: 0.5,
+      ),
+      'walk': const AnimationState(
+        name: 'walk',
+        frames: [
+          ui.Rect.fromLTWH(0, 32, 32, 32),
+          ui.Rect.fromLTWH(32, 32, 32, 32),
+        ],
+        frameDuration: 0.25,
+      ),
+      'attack': const AnimationState(
+        name: 'attack',
+        frames: [
+          ui.Rect.fromLTWH(0, 64, 32, 32),
+          ui.Rect.fromLTWH(32, 64, 32, 32),
+        ],
+        frameDuration: 0.1,
+        loop: true,
+      ),
+      'pain': const AnimationState(
+        name: 'pain',
+        frames: [ui.Rect.fromLTWH(0, 96, 32, 32)],
+        frameDuration: 0.5,
+      ),
+      'die': const AnimationState(
+        name: 'die',
+        frames: [
+          ui.Rect.fromLTWH(0, 96, 32, 32),
+          ui.Rect.fromLTWH(32, 96, 32, 32),
+        ],
+        frameDuration: 0.2,
+        loop: false,
+      ),
+    };
+
+    return GameEntity(
+      id: 'enemy_dyn_$_enemyCounter',
+      components: [
+        TransformComponent(position: spawnPos),
+        const RenderComponent(spritePath: 'enemy_grunt'),
+        const HealthComponent(current: 40, max: 40),
+        AIComponent(detectionRange: 8, attackRange: 2, moveSpeed: 1.5),
+        AnimationComponent(animations: animations, currentState: 'idle'),
+      ],
     );
   }
 
@@ -851,11 +842,36 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
             currentState: AIState.die,
             lastStateChange: DateTime.now(),
           );
+          // Sync AnimationComponent so death anim starts immediately,
+          // without relying on the AI System (which skips dead entities).
+          final animIndex = newComponents.indexWhere(
+            (c) => c is AnimationComponent,
+          );
+          if (animIndex >= 0) {
+            final anim = newComponents[animIndex] as AnimationComponent;
+            newComponents[animIndex] = anim.copyWith(
+              currentState: 'die',
+              currentFrame: 0,
+              timer: 0,
+            );
+          }
         } else if (result.enteredPain) {
           newComponents[aiIndex] = ai.copyWith(
             currentState: AIState.pain,
             lastStateChange: DateTime.now(),
           );
+          // Sync AnimationComponent to pain animation immediately.
+          final animIndex = newComponents.indexWhere(
+            (c) => c is AnimationComponent,
+          );
+          if (animIndex >= 0) {
+            final anim = newComponents[animIndex] as AnimationComponent;
+            newComponents[animIndex] = anim.copyWith(
+              currentState: 'pain',
+              currentFrame: 0,
+              timer: 0,
+            );
+          }
         }
       }
 

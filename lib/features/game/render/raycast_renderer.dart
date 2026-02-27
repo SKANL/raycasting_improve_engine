@@ -43,6 +43,15 @@ class RaycastRenderer extends PositionComponent
 
   @override
   void onNewState(WorldState state) {
+    // If we transition to empty/loading, clear the local visual caches!
+    if (state.status == WorldStatus.initial ||
+        state.status == WorldStatus.loading) {
+      if (_latestState.status != state.status) {
+        _particleSystem.clear();
+        _projectileTrailTimers.clear();
+        LogService.info('RENDER', 'VFX_CACHE_CLEARED', {});
+      }
+    }
     _latestState = state;
   }
 
@@ -215,19 +224,20 @@ class RaycastRenderer extends PositionComponent
           }
 
           if (t != null && srcRect != null) {
-            // OCCLUSION CHECK
-            if (_isSpriteVisible(_latestState, t.position)) {
-              final sqDist =
-                  (_latestState.effectivePosition - t.position).length2;
-              final dist = math.sqrt(sqDist);
+            final sqDist =
+                (_latestState.effectivePosition - t.position).length2;
+            final dist = math.sqrt(sqDist);
 
-              // CPU Fog Logic for Spirits matching GLSL exponential fog
-              final maxFogDist = 5.0; // Same as shader fog distance
-              final fogFactor =
-                  1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
-              final finalOpacity = math.max(0.0, opacity * (1.0 - fogFactor));
+            // CPU Fog Logic: Pre-calculate to avoid Raycast if invisible
+            final maxFogDist = 5.0; // Same as shader fog distance
+            final fogFactor =
+                1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
+            final finalOpacity = math.max(0.0, opacity * (1.0 - fogFactor));
 
-              if (finalOpacity > 0.05) {
+            // Early cull: Don't process DDA or draw if invisible due to fog
+            if (finalOpacity > 0.05) {
+              // OCCLUSION CHECK
+              if (_isSpriteVisible(_latestState, t.position)) {
                 renderables.add(
                   _RenderableSprite(
                     pos: t.position,
@@ -247,22 +257,18 @@ class RaycastRenderer extends PositionComponent
       // 2. Particles
       if (_latestState.spriteAtlas != null) {
         for (final p in _particleSystem.particles) {
-          // Occlusion check for particles too
-          if (_isSpriteVisible(_latestState, p.position)) {
-            final sqDist =
-                (_latestState.effectivePosition - p.position).length2;
-            final dist = math.sqrt(sqDist);
+          final sqDist = (_latestState.effectivePosition - p.position).length2;
+          final dist = math.sqrt(sqDist);
 
-            // CPU Fog Logic
-            final maxFogDist = 5.0;
-            final fogFactor =
-                1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
-            final finalOpacity = math.max(
-              0.0,
-              1.0 * (1.0 - fogFactor),
-            ); // Default particle base opacity is 1.0
+          // CPU Fog Logic
+          final maxFogDist = 5.0;
+          final fogFactor =
+              1.0 - math.exp(-math.pow(dist / (maxFogDist * 0.5), 2.0));
+          final finalOpacity = math.max(0.0, 1.0 * (1.0 - fogFactor));
 
-            if (finalOpacity > 0.05) {
+          if (finalOpacity > 0.05) {
+            // Occlusion check only if visible through fog
+            if (_isSpriteVisible(_latestState, p.position)) {
               renderables.add(
                 _RenderableSprite(
                   pos: p.position,
@@ -270,8 +276,7 @@ class RaycastRenderer extends PositionComponent
                   srcRect: p.textureRect,
                   distSq: sqDist,
                   scale: p.scale,
-                  opacity:
-                      finalOpacity, // We must add opacity handling to particle rendering later if missing
+                  opacity: finalOpacity,
                 ),
               );
             }
@@ -282,38 +287,40 @@ class RaycastRenderer extends PositionComponent
       // 3. Projectiles
       if (_latestState.spriteAtlas != null) {
         for (final proj in _latestState.projectiles) {
-          if (_isSpriteVisible(_latestState, proj.position)) {
-            // SlotX = 2 for normal, 3 for bouncing
-            final slotX = (proj.ammoType == AmmoType.normal) ? 2 : 3;
-            // Uses Row 1 (Walk) / Slot 3 for Muzzle Flash?? No, Row 0 Slot 2/3 are projectiles in generateSpriteAtlas
+          final sqDist =
+              (_latestState.effectivePosition - proj.position).length2;
+          final maxDistanceSq = 5.0 * 5.0; // Fast squared fog distance check
 
-            final srcRect = Rect.fromLTWH(slotX * 32.0, 0, 32, 32);
+          if (sqDist < maxDistanceSq) {
+            if (_isSpriteVisible(_latestState, proj.position)) {
+              // SlotX = 2 for normal, 3 for bouncing
+              final slotX = (proj.ammoType == AmmoType.normal) ? 2 : 3;
 
-            // GLOW/HALO (Back)
-            renderables.add(
-              _RenderableSprite(
-                pos: proj.position,
-                texture: _latestState.spriteAtlas!,
-                srcRect: srcRect,
-                distSq:
-                    (_latestState.effectivePosition - proj.position).length2,
-                scale: 1.2, // Larger
-                opacity: 0.4, // Transparent
-              ),
-            );
+              final srcRect = Rect.fromLTWH(slotX * 32.0, 0, 32, 32);
 
-            // CORE (Front)
-            renderables.add(
-              _RenderableSprite(
-                pos: proj.position,
-                texture: _latestState.spriteAtlas!,
-                srcRect: srcRect,
-                distSq:
-                    (_latestState.effectivePosition - proj.position).length2 -
-                    0.01, // Slight bias to draw in front
-                scale: 0.6,
-              ),
-            );
+              // GLOW/HALO (Back)
+              renderables.add(
+                _RenderableSprite(
+                  pos: proj.position,
+                  texture: _latestState.spriteAtlas!,
+                  srcRect: srcRect,
+                  distSq: sqDist,
+                  scale: 1.2, // Larger
+                  opacity: 0.4, // Transparent
+                ),
+              );
+
+              // CORE (Front)
+              renderables.add(
+                _RenderableSprite(
+                  pos: proj.position,
+                  texture: _latestState.spriteAtlas!,
+                  srcRect: srcRect,
+                  distSq: sqDist - 0.01, // Slight bias to draw in front
+                  scale: 0.6,
+                ),
+              );
+            }
           }
         }
       }
@@ -383,9 +390,13 @@ class RaycastRenderer extends PositionComponent
     if (transformY <= 0.1) return;
 
     final spriteScreenX = (screenSize.x / 2) * (1 + transformX / transformY);
-    final spriteHeight = (screenSize.y / transformY).abs() * scale;
-    final spriteWidth =
-        (screenSize.y / transformY).abs() * scale; // Assume square
+
+    // [FIX] Clamp transformY for dimension scaling to avoid >10,000px rects
+    // that crash the rasterizer when enemies get very close to the camera.
+    final sizeTransformY = math.max(0.4, transformY.abs());
+
+    final spriteHeight = (screenSize.y / sizeTransformY) * scale;
+    final spriteWidth = spriteHeight; // Assume square
     final spriteTop = (screenSize.y - spriteHeight) / 2;
 
     final dst = Rect.fromLTWH(
@@ -507,13 +518,16 @@ class RaycastRenderer extends PositionComponent
 
     // var currentDist = 0.0; // Unused
 
+    // Pre-calculate target map coordinates to avoid flooring in the hot loop
+    final targetMapX = target.x.floor();
+    final targetMapY = target.y.floor();
+
     // Max steps safety
     var steps = 0;
     const maxSteps = 50;
 
     while (steps < maxSteps) {
       // Advance ray
-      // var side = 0; // Unused
       if (sideDistX < sideDistY) {
         sideDistX += deltaDistX;
         mapX += stepX;
@@ -522,16 +536,12 @@ class RaycastRenderer extends PositionComponent
         mapY += stepY;
       }
 
-      // Calculate active DDA distance to check against target distance
-      // Actually simpler: check if we passed the target cell?
-      // Or just check if map[mapY][mapX] is solid.
-
       if (map.getCell(mapX, mapY).isSolid) {
         return false; // Wall hit! Occluded.
       }
 
       // Check if we reached the target cell
-      if (mapX == target.x.floor() && mapY == target.y.floor()) {
+      if (mapX == targetMapX && mapY == targetMapY) {
         return true; // Reached target without hitting wall
       }
 

@@ -10,6 +10,10 @@ class ParticleSystem {
 
   List<Particle> get particles => _particles;
 
+  void clear() {
+    _particles.clear();
+  }
+
   void update(double dt) {
     for (var i = _particles.length - 1; i >= 0; i--) {
       final p = _particles[i];

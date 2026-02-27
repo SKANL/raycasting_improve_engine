@@ -101,49 +101,12 @@ class MapGenerator {
 
     collectRooms(root);
 
-    // 7. Place Exit Door in the most border-adjacent room.
-    //    Player spawns in rooms.first, so skip it when picking the exit room.
-    ({int x, int y})? exitPos;
-
-    if (rooms.length > 1) {
-      final candidates = rooms.skip(1).toList();
-
-      RoomRect? exitRoom;
-      var minBorderDist = double.infinity;
-
-      for (final r in candidates) {
-        final distLeft = r.x.toDouble();
-        final distTop = r.y.toDouble();
-        final distRight = (width - (r.x + r.width)).toDouble();
-        final distBottom = (height - (r.y + r.height)).toDouble();
-        final minDist = [
-          distLeft,
-          distTop,
-          distRight,
-          distBottom,
-        ].reduce((a, b) => a < b ? a : b);
-
-        if (minDist < minBorderDist) {
-          minBorderDist = minDist;
-          exitRoom = r;
-        }
-      }
-
-      if (exitRoom != null) {
-        final ex = exitRoom.x + exitRoom.width ~/ 2;
-        final ey = exitRoom.y + exitRoom.height ~/ 2;
-        grid[ey][ex] = cellExit;
-        exitPos = (x: ex, y: ey);
-      }
-    }
-
     return GameMap(
       width: width,
       height: height,
       grid: grid,
       roomRects: rooms,
       seed: seed,
-      exitCellPosition: exitPos,
     );
   }
 
