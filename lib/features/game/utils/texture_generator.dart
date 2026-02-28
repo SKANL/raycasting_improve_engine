@@ -1545,130 +1545,402 @@ class TextureGenerator {
     return picture.toImage(width, height);
   }
 
+  // ignore: long-method
   static void _drawWeaponSprite(
     ui.Canvas canvas,
     int index,
     int row,
     ui.Color baseColor,
   ) {
-    final offsetX = (index * 64).toDouble();
-    final offsetY = (row * 64).toDouble();
+    final ox = (index * 64).toDouble(); // tile X offset
+    final oy = (row  * 64).toDouble(); // tile Y offset
+    // All coordinates below are relative to the tile top-left (ox, oy).
+    // The tile is 64×64.  bottom=64, center-X=32.
 
-    // Center of the 64x64 slot
-    final cx = offsetX + 32;
-    final bottom = offsetY + 64;
+    // ── helpers ───────────────────────────────────────────────────────────
+    ui.Rect r(double l, double t, double w, double h) =>
+        ui.Rect.fromLTWH(ox + l, oy + t, w, h);
 
-    // Metallic Gradient Helper
-    ui.Paint getMetallicPaint(ui.Rect rect, ui.Color base) {
+    ui.Paint fill(ui.Color c) => ui.Paint()..color = c;
+
+    // Horizontal metallic gradient on a rect
+    ui.Paint metal(ui.Rect rect, ui.Color mid,
+        {double darkF = 0.38, double lightF = 1.35}) {
+      final dark = ui.Color.fromARGB(
+        mid.alpha,
+        (mid.red   * darkF).clamp(0, 255).round(),
+        (mid.green * darkF).clamp(0, 255).round(),
+        (mid.blue  * darkF).clamp(0, 255).round(),
+      );
+      final lite = ui.Color.fromARGB(
+        mid.alpha,
+        (mid.red   * lightF).clamp(0, 255).round(),
+        (mid.green * lightF).clamp(0, 255).round(),
+        (mid.blue  * lightF).clamp(0, 255).round(),
+      );
       return ui.Paint()
         ..shader = ui.Gradient.linear(
-          ui.Offset(rect.left, rect.top),
-          ui.Offset(rect.right, rect.top),
-          [
-            base.withOpacity(0.4),
-            base,
-            base.withOpacity(0.6),
-            base,
-            base.withOpacity(0.4),
-          ],
-          [0.0, 0.2, 0.5, 0.8, 1.0],
+          rect.topLeft,
+          rect.topRight,
+          [dark, lite, mid, dark],
+          [0.0, 0.25, 0.6, 1.0],
         );
     }
 
+    // Rounded rect helper
+    void rr(ui.Canvas c, double l, double t, double w, double h,
+        double rad, ui.Paint p) =>
+        c.drawRRect(
+          ui.RRect.fromRectAndRadius(r(l, t, w, h), ui.Radius.circular(rad)),
+          p,
+        );
+
+    // ── draw line helper (relative)
+    void ln(ui.Canvas c, double x1, double y1, double x2, double y2,
+        ui.Color col, double sw) =>
+        c.drawLine(
+          ui.Offset(ox + x1, oy + y1),
+          ui.Offset(ox + x2, oy + y2),
+          fill(col)..strokeWidth = sw,
+        );
+
+    // ── shadow tint
+    const shadowC = ui.Color(0x55000000);
+    // ── highlight tint
+    const hiC     = ui.Color(0x44FFFFFF);
+
+    // ─────────────────────────────────────────────────────────────────────
     switch (index) {
-      case 0: // Pistol
-      case 3: // Bounce Pistol (Futuristic)
-        // 1. Grip (Darker)
-        final gripRect = ui.Rect.fromLTWH(cx - 5, bottom - 25, 10, 25);
-        canvas.drawRect(
-          gripRect,
-          ui.Paint()..color = const ui.Color(0xFF2d2d2d),
-        );
 
-        // 2. Slide/Barrel (Metallic)
-        final barrelRect = ui.Rect.fromLTWH(cx - 6, bottom - 35, 12, 28);
-        canvas.drawRect(barrelRect, getMetallicPaint(barrelRect, baseColor));
-
-        // 3. Slide Detail (Top highlight)
-        canvas.drawRect(
-          ui.Rect.fromLTWH(cx - 4, bottom - 35, 8, 28),
-          ui.Paint()..color = ui.Color.fromARGB(50, 255, 255, 255),
-        );
-
-        // 4. Muzzle
-        canvas.drawRect(
-          ui.Rect.fromLTWH(cx - 2, bottom - 35, 4, 4),
-          ui.Paint()..color = const ui.Color(0xFF111111),
-        );
-        break;
-
-      case 1: // Shotgun
-        // 1. Stock (Wood)
-        final stockRect = ui.Rect.fromLTWH(cx - 8, bottom - 25, 16, 25);
-        canvas.drawRect(
-          stockRect,
-          ui.Paint()..color = const ui.Color(0xFF5D4037),
-        );
-        // Wood grain
-        for (var i = 0; i < 3; i++) {
-          canvas.drawLine(
-            ui.Offset(cx - 6.0 + i * 5, bottom - 25),
-            ui.Offset(cx - 6.0 + i * 5, bottom),
-            ui.Paint()
-              ..color = const ui.Color(0xFF3E2723)
-              ..strokeWidth = 1,
+      // ════════════════════════════════════════════════════════════════════
+      case 0: // PISTOL  (compact semi-auto, Glock-inspired)
+      // ════════════════════════════════════════════════════════════════════
+        {
+          // Grip (polymer, slightly tilted — drawn as rects for simplicity)
+          final gripR = r(26, 42, 14, 22);
+          canvas.drawRRect(
+            ui.RRect.fromLTRBAndCorners(gripR.left, gripR.top, gripR.right, gripR.bottom,
+              bottomLeft: const ui.Radius.circular(3),
+              bottomRight: const ui.Radius.circular(3),
+            ),
+            fill(const ui.Color(0xFF1A1A1A)),
           );
+          // Grip texture stippling
+          for (var gy = 0; gy < 5; gy++) {
+            for (var gx = 0; gx < 3; gx++) {
+              canvas.drawCircle(
+                ui.Offset(ox + 28.5 + gx * 4.5, oy + 44.5 + gy * 4.0),
+                0.8,
+                fill(const ui.Color(0xFF333333)),
+              );
+            }
+          }
+          // Trigger guard
+          canvas.drawArc(
+            r(24, 37, 10, 9),
+            0, 3.14159, false,
+            fill(const ui.Color(0xFF111111))..style = ui.PaintingStyle.stroke
+              ..strokeWidth = 2.0,
+          );
+          // Slide (main body − metallic dark grey)
+          final slideR = r(22, 18, 20, 26);
+          canvas.drawRect(slideR, metal(slideR, const ui.Color(0xFF555555)));
+          // Slide top flat
+          canvas.drawRect(r(23, 18, 18, 4), fill(const ui.Color(0xFF444444)));
+          // Cut-out ejection port (right side)
+          canvas.drawRect(r(38, 24, 4, 8), fill(const ui.Color(0xFF0A0A0A)));
+          // Serrations (rear slide grip)
+          for (var i = 0; i < 5; i++) {
+            ln(canvas, 37.0, 19.0 + i * 2.8, 40.0, 19.0 + i * 2.8,
+               const ui.Color(0xFF333333), 1.0);
+          }
+          // Barrel (extends slightly past slide top)
+          rr(canvas, 28, 13, 8, 8, 1.5, metal(r(28, 13, 8, 8), const ui.Color(0xFF3A3A3A)));
+          // Muzzle hole
+          canvas.drawCircle(ui.Offset(ox + 32, oy + 15), 2.0,
+              fill(const ui.Color(0xFF050505)));
+          // Front sight (tiny post)
+          canvas.drawRect(r(31, 13, 2, 3), fill(const ui.Color(0xFFEEEEEE)));
+          // Rear sight notch
+          canvas.drawRect(r(22, 18, 5, 3), fill(const ui.Color(0xFF888888)));
+          canvas.drawRect(r(23, 18, 3, 2), fill(const ui.Color(0xFF0A0A0A)));
+          // Top highlight
+          canvas.drawRect(r(23, 18, 18, 2), fill(hiC));
         }
-
-        // 2. Barrels (Double Metallic)
-        final b1 = ui.Rect.fromLTWH(cx - 8, bottom - 50, 6, 40);
-        final b2 = ui.Rect.fromLTWH(cx + 2, bottom - 50, 6, 40);
-        canvas.drawRect(b1, getMetallicPaint(b1, ui.Color(0xFF606060)));
-        canvas.drawRect(b2, getMetallicPaint(b2, ui.Color(0xFF606060)));
-
-        // 3. Muzzle Holes
-        canvas.drawRect(
-          ui.Rect.fromLTWH(cx - 7, bottom - 50, 4, 4),
-          ui.Paint()..color = Colors.black,
-        );
-        canvas.drawRect(
-          ui.Rect.fromLTWH(cx + 3, bottom - 50, 4, 4),
-          ui.Paint()..color = Colors.black,
-        );
         break;
 
-      case 2: // Rifle
-      case 4: // Bounce Rifle
-        // 1. Stock (Dark Polymer)
-        final stockRect = ui.Rect.fromLTWH(cx - 6, bottom - 20, 12, 20);
-        canvas.drawRect(
-          stockRect,
-          ui.Paint()..color = const ui.Color(0xFF263238),
-        );
+      // ════════════════════════════════════════════════════════════════════
+      case 1: // SHOTGUN  (double-barrel side-by-side + pump grip)
+      // ════════════════════════════════════════════════════════════════════
+        {
+          // Stock (walnut wood)
+          final stR = r(18, 44, 28, 20);
+          canvas.drawRRect(
+            ui.RRect.fromLTRBAndCorners(stR.left, stR.top, stR.right, stR.bottom,
+              bottomLeft:  const ui.Radius.circular(4),
+              bottomRight: const ui.Radius.circular(4),
+            ),
+            fill(const ui.Color(0xFF5C3011)),
+          );
+          // Wood grain lines
+          for (var i = 0; i < 5; i++) {
+            ln(canvas, 20.0 + i * 5.5, 44.0, 19.0 + i * 5.5, 64.0,
+               const ui.Color(0xFF3B1E0A), 0.8);
+          }
+          // Stock highlight
+          canvas.drawRect(r(18, 44, 28, 2), fill(const ui.Color(0x33FFCC88)));
+          // Receiver / action
+          final recR = r(16, 36, 32, 12);
+          canvas.drawRect(recR, metal(recR, const ui.Color(0xFF5A5A5A)));
+          canvas.drawRect(r(17, 37, 30, 3), fill(const ui.Color(0xFF333333)));
+          // Pump forend
+          final pumpR = r(17, 28, 30, 9);
+          canvas.drawRRect(
+            ui.RRect.fromRectAndRadius(pumpR, const ui.Radius.circular(3)),
+            metal(pumpR, const ui.Color(0xFF4A3010)),
+          );
+          // Pump grip lines
+          for (var i = 0; i < 6; i++) {
+            ln(canvas, 18.0 + i * 4.5, 29.0, 18.0 + i * 4.5, 36.0,
+               const ui.Color(0xFF2A1A08), 1.2);
+          }
+          // Left barrel
+          final lb = r(18, 4, 11, 28);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(lb, const ui.Radius.circular(2)),
+              metal(lb, const ui.Color(0xFF626262)));
+          canvas.drawRect(r(19, 4, 9, 3), fill(const ui.Color(0xFF444444)));
+          // Right barrel
+          final rb = r(31, 4, 11, 28);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(rb, const ui.Radius.circular(2)),
+              metal(rb, const ui.Color(0xFF5A5A5A)));
+          canvas.drawRect(r(32, 4, 9, 3), fill(const ui.Color(0xFF3A3A3A)));
+          // Muzzle holes
+          canvas.drawOval(r(19, 4, 9, 5), fill(const ui.Color(0xFF0A0A0A)));
+          canvas.drawOval(r(32, 4, 9, 5), fill(const ui.Color(0xFF0A0A0A)));
+          // Rib between barrels
+          canvas.drawRect(r(29, 6, 2, 22), fill(const ui.Color(0xFF787878)));
+          // Top highlight
+          canvas.drawRect(r(16, 36, 32, 1), fill(hiC));
+          // Barrel band
+          canvas.drawRect(r(16, 14, 32, 3), metal(r(16, 14, 32, 3), const ui.Color(0xFF888888)));
+        }
+        break;
 
-        // 2. Body (Detailed)
-        final bodyRect = ui.Rect.fromLTWH(cx - 8, bottom - 35, 16, 20);
-        canvas.drawRect(bodyRect, getMetallicPaint(bodyRect, baseColor));
+      // ════════════════════════════════════════════════════════════════════
+      case 2: // RIFLE  (assault rifle, AK/M16 inspired)
+      // ════════════════════════════════════════════════════════════════════
+        {
+          // Stock / buffer tube
+          rr(canvas, 36, 50, 18, 10, 2, fill(const ui.Color(0xFF1A2030)));
+          canvas.drawRect(r(36, 50, 18, 2), fill(const ui.Color(0xFF2A3040)));
+          // Pistol grip (polymer)
+          final pgR = r(34, 42, 12, 20);
+          canvas.drawRRect(
+            ui.RRect.fromLTRBAndCorners(pgR.left, pgR.top, pgR.right, pgR.bottom,
+              bottomLeft:  const ui.Radius.circular(4),
+              bottomRight: const ui.Radius.circular(4),
+            ),
+            fill(const ui.Color(0xFF181818)),
+          );
+          // Grip stippling
+          for (var gy = 0; gy < 4; gy++) {
+            for (var gx = 0; gx < 3; gx++) {
+              canvas.drawCircle(
+                ui.Offset(ox + 35.5 + gx * 3.5, oy + 44 + gy * 4.5),
+                0.7, fill(const ui.Color(0xFF2A2A2A)));
+            }
+          }
+          // Trigger guard
+          canvas.drawArc(r(31, 36, 12, 10), 0, 3.14159, false,
+            fill(const ui.Color(0xFF111111))..style = ui.PaintingStyle.stroke
+              ..strokeWidth = 2.0);
+          // Lower receiver
+          final lrR = r(14, 38, 34, 14);
+          canvas.drawRect(lrR, metal(lrR, const ui.Color(0xFF3A3A3A)));
+          // Magazine (box, angled)
+          final magR = r(22, 44, 12, 16);
+          canvas.drawRRect(
+            ui.RRect.fromLTRBAndCorners(magR.left, magR.top, magR.right, magR.bottom,
+              bottomLeft:  const ui.Radius.circular(2),
+              bottomRight: const ui.Radius.circular(2),
+            ),
+            metal(magR, const ui.Color(0xFF484848)),
+          );
+          // Mag spine lines
+          ln(canvas, 28.0, 45.0, 28.0, 60.0, const ui.Color(0xFF222222), 1.5);
+          canvas.drawRect(r(22, 44, 12, 2), fill(const ui.Color(0xFF666666)));
+          // Upper receiver / carry-handle rail
+          final urR = r(10, 28, 40, 12);
+          canvas.drawRect(urR, metal(urR, const ui.Color(0xFF404040)));
+          // Carry-handle
+          final chR = r(24, 22, 18, 8);
+          canvas.drawRect(chR, metal(chR, const ui.Color(0xFF353535)));
+          canvas.drawRect(r(24, 22, 18, 2), fill(const ui.Color(0xFF555555)));
+          // Rail serrations
+          for (var i = 0; i < 5; i++) {
+            ln(canvas, 11.0 + i * 7.5, 28.0, 11.0 + i * 7.5, 30.0,
+               const ui.Color(0xFF555555), 1.0);
+          }
+          // Barrel (long, cylindrical look)
+          canvas.drawRect(r(10, 18, 16, 12),
+              metal(r(10, 18, 16, 12), const ui.Color(0xFF3C3C3C)));
+          canvas.drawRect(r(8,  8,  8, 12),
+              metal(r(8,  8,  8, 12),  const ui.Color(0xFF484848)));
+          final barR = r(9, 2, 6, 8);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(barR, const ui.Radius.circular(1.5)),
+              metal(barR, const ui.Color(0xFF3A3A3A)));
+          // Muzzle device (3 small notches)
+          for (var i = 0; i < 3; i++) {
+            canvas.drawRect(r(9.0 + i * 2.0, 2.0, 1.5, 4), fill(const ui.Color(0xFF555555)));
+          }
+          // Muzzle hole
+          canvas.drawOval(r(10, 2, 4, 4), fill(const ui.Color(0xFF050505)));
+          // Charging handle
+          canvas.drawRect(r(46, 28, 4, 5), fill(const ui.Color(0xFF282828)));
+          // Top highlight
+          canvas.drawRect(r(10, 28, 40, 1), fill(hiC));
+          // Front sight post
+          ln(canvas, 12.0, 17.0, 12.0, 19.0, const ui.Color(0xFFDDDDDD), 1.5);
+        }
+        break;
 
-        // 3. Long Barrel
-        final barrelRect2 = ui.Rect.fromLTWH(cx - 3, bottom - 60, 6, 30);
-        canvas.drawRect(
-          barrelRect2,
-          getMetallicPaint(barrelRect2, const ui.Color(0xFF111111)),
-        );
+      // ════════════════════════════════════════════════════════════════════
+      case 3: // BOUNCE PISTOL (compact energy pistol, cyan/green coils)
+      // ════════════════════════════════════════════════════════════════════
+        {
+          final glowC   = baseColor;  // lightGreen
+          final glowMid = ui.Color.fromARGB(200, glowC.red, glowC.green, glowC.blue);
+          final glowDim = ui.Color.fromARGB(80,  glowC.red, glowC.green, glowC.blue);
 
-        // 4. Scope (Lens reflection)
-        final scopeRect = ui.Rect.fromLTWH(cx - 4, bottom - 42, 8, 6);
-        canvas.drawRect(
-          scopeRect,
-          ui.Paint()..color = const ui.Color(0xFF000000),
-        );
-        // Lens Glint
-        canvas.drawCircle(
-          ui.Offset(cx, bottom - 39),
-          2,
-          ui.Paint()..color = const ui.Color(0xFF4FC3F7),
-        ); // Light Blue
+          // Grip (futuristic rounded polymer)
+          rr(canvas, 25, 42, 16, 22, 3, fill(const ui.Color(0xFF101820)));
+          // Grip accent stripe
+          canvas.drawRect(r(25, 48, 16, 2), fill(glowDim));
+          canvas.drawRect(r(25, 55, 16, 2), fill(glowDim));
+
+          // Body / frame (bulkier than normal pistol)
+          final bodyR = r(20, 20, 24, 24);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(bodyR, const ui.Radius.circular(3)),
+              metal(bodyR, const ui.Color(0xFF1A2A2A)));
+          // Side panel accent
+          canvas.drawRect(r(21, 22, 22, 3),
+              fill(ui.Color.fromARGB(120, glowC.red, glowC.green, glowC.blue)));
+
+          // Energy coil on barrel (3 rings, decreasing size upward)
+          for (var i = 0; i < 3; i++) {
+            final ry = oy + 12.0 + i * 5.0;
+            canvas.drawOval(
+              ui.Rect.fromCenter(center: ui.Offset(ox + 32, ry), width: 12 - i.toDouble(), height: 4),
+              fill(glowMid)..style = ui.PaintingStyle.stroke..strokeWidth = 1.5,
+            );
+          }
+          // Inner glow on coil
+          canvas.drawRect(r(27, 10, 10, 18),
+              fill(ui.Color.fromARGB(40, glowC.red, glowC.green, glowC.blue)));
+
+          // Barrel (short energy muzzle)
+          final barR = r(27, 6, 10, 6);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(barR, const ui.Radius.circular(2)),
+              metal(barR,  const ui.Color(0xFF1A3030)));
+          // Muzzle glow opening
+          canvas.drawOval(r(29, 6, 6, 4), fill(glowMid));
+          canvas.drawOval(r(30, 7, 4, 2), fill(const ui.Color(0xFF00FFCC)));
+
+          // Trigger guard (glowing)
+          canvas.drawArc(r(22, 38, 10, 8), 0, 3.14159, false,
+            fill(glowDim)..style = ui.PaintingStyle.stroke..strokeWidth = 1.5);
+
+          // Top highlight
+          canvas.drawRect(r(20, 20, 24, 2), fill(hiC));
+        }
+        break;
+
+      // ════════════════════════════════════════════════════════════════════
+      case 4: // BOUNCE RIFLE (long energy rifle, blue/cyan coil rings)
+      // ════════════════════════════════════════════════════════════════════
+        {
+          final glowC   = baseColor; // lightBlue
+          final glowMid = ui.Color.fromARGB(200, glowC.red, glowC.green, glowC.blue);
+          final glowDim = ui.Color.fromARGB(80,  glowC.red, glowC.green, glowC.blue);
+
+          // Stock (dark composite)
+          rr(canvas, 36, 50, 20, 14, 3, fill(const ui.Color(0xFF0D1520)));
+          canvas.drawRect(r(36, 50, 20, 2), fill(const ui.Color(0xFF1A2535)));
+          // Stock energy accent
+          canvas.drawRect(r(38, 57, 14, 2),
+              fill(ui.Color.fromARGB(100, glowC.red, glowC.green, glowC.blue)));
+
+          // Pistol grip
+          rr(canvas, 34, 40, 12, 22, 3, fill(const ui.Color(0xFF0A1218)));
+          canvas.drawRect(r(35, 44, 10, 2), fill(glowDim));
+          canvas.drawRect(r(35, 51, 10, 2), fill(glowDim));
+
+          // Main body / rail (long horizontal)
+          final bodyR = r(8, 30, 48, 14);
+          canvas.drawRect(bodyR, metal(bodyR, const ui.Color(0xFF152030)));
+          canvas.drawRect(r(8, 30, 48, 2), fill(const ui.Color(0xFF1F3040)));
+
+          // Energy conduit (glowing channel on top)
+          canvas.drawRect(r(8, 30, 48, 3),
+              fill(ui.Color.fromARGB(80, glowC.red, glowC.green, glowC.blue)));
+
+          // Barrel (long, extends to top)
+          final barR = r(8, 4, 10, 28);
+          canvas.drawRRect(ui.RRect.fromRectAndRadius(barR, const ui.Radius.circular(2)),
+              metal(barR, const ui.Color(0xFF101E2A)));
+
+          // Energy coil rings along barrel (5 rings evenly spaced)
+          for (var i = 0; i < 5; i++) {
+            final ry = oy + 7.0 + i * 5.0;
+            canvas.drawOval(
+              ui.Rect.fromCenter(center: ui.Offset(ox + 13, ry), width: 14, height: 4),
+              fill(glowMid)..style = ui.PaintingStyle.stroke..strokeWidth = 1.8,
+            );
+            // Inner glow within ring
+            canvas.drawOval(
+              ui.Rect.fromCenter(center: ui.Offset(ox + 13, ry), width: 10, height: 3),
+              fill(ui.Color.fromARGB(30, glowC.red, glowC.green, glowC.blue)),
+            );
+          }
+
+          // Barrel glow channel
+          canvas.drawRect(r(10, 4, 6, 26),
+              fill(ui.Color.fromARGB(25, glowC.red, glowC.green, glowC.blue)));
+
+          // Muzzle emitter
+          rr(canvas, 8, 2, 10, 4, 1.5, metal(r(8, 2, 10, 4), const ui.Color(0xFF102030)));
+          canvas.drawOval(r(10, 2, 6, 4), fill(glowMid));
+          canvas.drawOval(r(11, 3, 4, 2), fill(const ui.Color(0xFFAAEEFF)));
+
+          // Scope rail / carry handle
+          final scopeR = r(22, 24, 20, 8);
+          canvas.drawRect(scopeR, metal(scopeR, const ui.Color(0xFF1A2A38)));
+          // Lens
+          canvas.drawOval(r(28, 25, 8, 5), fill(const ui.Color(0xFF050A10)));
+          canvas.drawOval(r(30, 26, 4, 3), fill(glowMid));
+          // Scope highlight
+          ln(canvas, 30.0, 26.0, 31.5, 27.5, const ui.Color(0xAAFFFFFF), 0.8);
+
+          // Charging handle
+          canvas.drawRect(r(54, 30, 2, 7), fill(const ui.Color(0xFF0A1520)));
+
+          // Magazine (slimmer box)
+          final magR = r(26, 40, 10, 12);
+          canvas.drawRRect(
+            ui.RRect.fromLTRBAndCorners(magR.left, magR.top, magR.right, magR.bottom,
+              bottomLeft:  const ui.Radius.circular(2),
+              bottomRight: const ui.Radius.circular(2),
+            ),
+            metal(magR, const ui.Color(0xFF182530)),
+          );
+          canvas.drawRect(r(26, 40, 10, 2),
+              fill(ui.Color.fromARGB(150, glowC.red, glowC.green, glowC.blue)));
+
+          // Shadow below body
+          canvas.drawRect(r(8, 42, 56, 2), fill(shadowC));
+          // Top highlight
+          canvas.drawRect(r(8, 30, 48, 1), fill(hiC));
+        }
         break;
     }
   }

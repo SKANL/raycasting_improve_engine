@@ -7,6 +7,7 @@ import 'package:raycasting_game/core/logging/log_service.dart';
 import 'package:raycasting_game/features/core/ecs/components/health_component.dart';
 import 'package:raycasting_game/features/core/ecs/components/render_component.dart';
 import 'package:raycasting_game/features/core/ecs/components/transform_component.dart';
+import 'package:raycasting_game/features/core/ecs/components/pickup_component.dart';
 import 'package:raycasting_game/features/core/ecs/models/component.dart';
 import 'package:raycasting_game/features/core/world/models/game_entity.dart';
 import 'package:raycasting_game/features/core/world/models/game_map.dart';
@@ -50,9 +51,22 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   // --- Survival Mode: Spawn Timer ---
   double _spawnTimer = 0.0;
   int _enemyCounter = 0;
-  static const double _spawnInterval = 5.0;
-  static const int _maxAliveEnemies = 10;
   static const double _corpseLifetime = 3.0;
+
+  // --- Wave / Difficulty Scaling ---
+  // Wave advances every 5 kills.  Wave 0 = easiest, no hard cap.
+  // Spawn interval and max-alive enemies both scale with wave.
+  int _waveNumber = 0;
+  int _killCount = 0;
+  static const int _killsPerWave = 5;
+
+  // Dynamic spawn config (re-computed from wave each tick)
+  double get _spawnInterval => math.max(2.0, 5.0 - _waveNumber * 0.4);
+  int get _maxAliveEnemies => math.min(14, 4 + _waveNumber * 2);
+
+  // OPT: AI time-slicing — full FSM/LOS at 20 Hz, velocity applied at 60 Hz.
+  double _aiAccumulator = 0.0;
+  static const double _aiUpdateInterval = 1.0 / 20.0; // 50 ms
 
   final AISystem _aiSystem = AISystem();
   final AnimationSystem _animationSystem = AnimationSystem();
@@ -163,7 +177,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         textureAtlas: textureAtlas,
         spriteAtlas: spriteAtlas,
         weaponAtlas: weaponAtlas,
-        entities: const [],
+        entities: _spawnInitialPickups(map, spawn),
         lights: lights,
         playerPosition: spawn,
         playerDirection: 0,
@@ -306,7 +320,9 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   }
 
   void _onSoundEmitted(SoundEmitted event, Emitter<WorldState> emit) {
-    // "Wake up" enemies within range
+    // "Wake up" idle/patrolling enemies within range.
+    // They enter INVESTIGATE (not chase) — more realistic, gives player
+    // a chance to prepare before the enemy actually confirms LOS.
     final updatedEntities = state.entities.map((entity) {
       if (!entity.isActive) return entity;
 
@@ -317,20 +333,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       if (ai.currentState == AIState.idle ||
           ai.currentState == AIState.patrol) {
         final dist = transform.position.distanceTo(event.source);
-        // If sound is loud enough or close enough
         if (dist <= event.radius) {
           LogService.info('World', 'AI_HEARD_SOUND', {
             'id': entity.id,
-            'dist': dist,
+            'dist': dist.toStringAsFixed(1),
           });
-          // Transition to CHASE
+          // Transition to INVESTIGATE — not instant chase
           final newAI = ai.copyWith(
-            currentState: AIState.chase,
+            currentState: AIState.investigate,
             lastStateChange: DateTime.now(),
-            lastSeenPosition: event.source, // Investigate source of sound
+            investigatePosition: event.source, // Walk toward the sound source
           );
 
-          // Update entity components
           final newComponents = List<GameComponent>.from(entity.components);
           final index = newComponents.indexWhere((c) => c is AIComponent);
           newComponents[index] = newAI;
@@ -342,7 +356,6 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     }).toList();
 
     if (updatedEntities != state.entities) {
-      // Only emit if changed (reference inequality might trigger, but map returns new list anyway)
       emit(state.copyWith(entities: updatedEntities));
     }
   }
@@ -358,48 +371,61 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
     // Weapon Logic
     if (weapon.isHitscan) {
-      // Hitscan: Raycast immediately
-      final spread = (math.Random().nextDouble() - 0.5) * weapon.spreadAngle;
-      final angle = state.playerDirection + spread;
-      final dir = Vector2(math.cos(angle), math.sin(angle));
+      // One raycast + one visual tracer per pellet.
+      // Shotgun fires weapon.pellets == 7; pistol/rifle fire 1.
+      final rng = math.Random();
+      for (var pellet = 0; pellet < weapon.pellets; pellet++) {
+        final spread = (rng.nextDouble() - 0.5) * weapon.spreadAngle;
+        final angle = state.playerDirection + spread;
+        final dir = Vector2(math.cos(angle), math.sin(angle));
 
-      final hitEntityId = PhysicsSystem.raycastEntities(
-        state.effectivePosition,
-        dir,
-        state.entities,
-        state.map,
-        maxDistance: weapon.range,
-        excludeId: 'player',
-      );
+        // Instant damage raycast for this pellet
+        final hitEntityId = PhysicsSystem.raycastEntities(
+          state.effectivePosition,
+          dir,
+          state.entities,
+          state.map,
+          maxDistance: weapon.range,
+          excludeId: 'player',
+        );
 
-      LogService.info('WORLD', 'HITSCAN_DEBUG', {
-        'angle': angle.toStringAsFixed(2),
-        'didHit': hitEntityId != null,
-        'hitId': hitEntityId ?? 'none',
-      });
+        if (pellet == 0) {
+          LogService.info('WORLD', 'HITSCAN_DEBUG', {
+            'angle': angle.toStringAsFixed(2),
+            'didHit': hitEntityId != null,
+            'hitId': hitEntityId ?? 'none',
+          });
+        }
 
-      if (hitEntityId != null) {
-        damageMap[hitEntityId] = weapon.damage;
+        if (hitEntityId != null) {
+          // Accumulate: multiple shotgun pellets hitting the same target stack.
+          damageMap[hitEntityId] =
+              (damageMap[hitEntityId] ?? 0) + weapon.damage;
+        }
+
+        // Perspective-correct tracer round — rendered as an elongated streak.
+        // visualScale varies per weapon: shotgun pellets are small, rifle is thin,
+        // pistol is medium.
+        final double tracerScale = weapon.id == 'rifle'
+            ? 0.7
+            : weapon.id == 'shotgun'
+            ? 0.85
+            : 1.2; // pistol default
+        newProjectiles.add(
+          Projectile(
+            id: uuid.v4(),
+            ownerId: 'player',
+            position: state.effectivePosition + dir * 0.5,
+            velocity: dir * 80.0, // 80 u/s — cap life to <1 weapon cycle
+            damage: 0,
+            ammoType: AmmoType.normal,
+            isVisualOnly: true,
+            maxRange: 9.0, // Fog distance — 1 visible tracer per shot
+            renderStyle: ProjectileRenderStyle.tracer,
+            visualScale: tracerScale,
+          ),
+        );
       }
-
-      // Visual Tracer (Fake Projectile)
-      // Even if hitscan, we want to see a bullet fly
-      // We start slightly in front
-      final tDir = Vector2(math.cos(angle), math.sin(angle));
-      final cStart = state.effectivePosition + tDir * 0.5;
-
-      newProjectiles.add(
-        Projectile(
-          id: uuid.v4(),
-          ownerId: 'player',
-          position: cStart,
-          velocity: tDir * 40.0, // Fast tracer
-          damage: 0,
-          ammoType: AmmoType.normal, // Use normal sprite (Slot 2)
-          isVisualOnly: true,
-          maxRange: weapon.range,
-        ),
-      );
     } else {
       // Projectile: Spawn
       final dir = Vector2(
@@ -408,6 +434,9 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       );
       // Spawn slightly in front to avoid clipping player immediately
       final startPos = state.effectivePosition + dir * 0.5;
+
+      // visualScale: bouncePistol is a big slow orb, bounceRifle is smaller/faster.
+      final double projScale = weapon.id == 'bounce_pistol' ? 1.7 : 1.3;
 
       newProjectiles.add(
         Projectile(
@@ -418,6 +447,8 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
           damage: weapon.damage,
           ammoType: weapon.ammoType,
           bouncesLeft: weapon.maxBounces,
+          visualScale: projScale,
+          renderStyle: ProjectileRenderStyle.plasma,
         ),
       );
     }
@@ -437,11 +468,24 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       for (final result in damageResults) {
         if (result.died) {
           newEffects.add(EnemyKilledEffect(result.entityId));
-        } else {
-          // Could add generic hit effect
+          _killCount++;
+          if (_killCount % _killsPerWave == 0) {
+            _waveNumber++;
+            LogService.info('WORLD', 'WAVE_UP', {
+              'wave': _waveNumber,
+              'kills': _killCount,
+            });
+          }
         }
       }
     }
+
+    // Alert nearby enemies to the gunshot sound (radius scales with weapon range)
+    updatedEntities = _alertEnemiesFromShot(
+      state.effectivePosition,
+      weapon.range * 0.7,
+      updatedEntities,
+    );
 
     emit(
       state.copyWith(
@@ -455,12 +499,16 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   void _onWorldTick(WorldTick event, Emitter<WorldState> emit) {
     if (state.isPlayerDead || state.status == WorldStatus.gameOver) return;
 
+    // OPT: Single DateTime.now() shared by lights flicker, AI timers, and
+    // time-slicing gate — was called O(n_lights + n_entities) per frame.
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch / 1000.0;
+
     // 1. Update Lights (Flicker)
     final updatedLights = state.lights.map((light) {
       if (light.flickerSpeed > 0) {
-        final time = DateTime.now().millisecondsSinceEpoch / 1000.0;
         final flicker =
-            math.sin(time * light.flickerSpeed * math.pi) * 0.1 + 0.9;
+            math.sin(nowMs * light.flickerSpeed * math.pi) * 0.1 + 0.9;
         return light.copyWith(intensity: light.intensity * flicker);
       }
       return light;
@@ -478,12 +526,22 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
           (e) => e.getComponent<AIComponent>()?.currentState != AIState.die,
         )
         .toList(growable: false);
-    final aiUpdates = _aiSystem.update(
-      event.dt,
-      liveEntities, // <-- skip dead enemies
-      state.effectivePosition,
-      state.map,
-    );
+
+    // OPT: AI time-slicing — run full FSM + LOS at 20 Hz.
+    // Between ticks, apply the cached velocity for smooth 60 Hz movement.
+    _aiAccumulator += event.dt;
+    final shouldRunFullAI = _aiAccumulator >= _aiUpdateInterval;
+    if (shouldRunFullAI) _aiAccumulator -= _aiUpdateInterval;
+
+    final aiUpdates = shouldRunFullAI
+        ? _aiSystem.update(
+            event.dt,
+            liveEntities,
+            state.effectivePosition,
+            state.map,
+            now: now,
+          )
+        : _applyVelocityOnly(event.dt, liveEntities);
 
     // 3. Projectile Update
     final projResult = ProjectileSystem.update(
@@ -576,6 +634,16 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       }
     }
 
+    // Bounce impact sparks: emit one-shot effect per wall bounce this tick.
+    for (final pos in projResult.wallBounces) {
+      newEffects.add(BounceEffect(Vector2(pos.x, pos.y)));
+    }
+
+    // Wall hit decals: non-bouncing projectiles that stopped at a wall.
+    for (final pos in projResult.wallHits) {
+      newEffects.add(WallHitEffect(Vector2(pos.x, pos.y)));
+    }
+
     var newPlayerPosition = state.effectivePosition;
 
     if (playerDamageTaken > 0 && !isPlayerDead) {
@@ -661,10 +729,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // 9. Update Animations (Advance frames)
     updatedEntities = _animationSystem.update(event.dt, updatedEntities);
 
-    // 10. Process Death Effects from DamageResults
+    // 10. Process Death Effects from DamageResults + advance wave counter
     for (final res in damageResults) {
       if (res.died) {
         newEffects.add(EnemyKilledEffect(res.entityId));
+        _killCount++;
+        if (_killCount % _killsPerWave == 0) {
+          _waveNumber++;
+          LogService.info('WORLD', 'WAVE_UP', {
+            'wave': _waveNumber,
+            'kills': _killCount,
+          });
+        }
       }
     }
 
@@ -672,7 +748,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     _spawnTimer += event.dt;
 
     // Purge corpses dead for > _corpseLifetime seconds (O(n) on ≤10 enemies)
-    final now = DateTime.now();
+    // OPT: Reuse `now` from top of tick — no extra DateTime allocation.
     updatedEntities = updatedEntities.where((e) {
       final ai = e.getComponent<AIComponent>();
       if (ai == null || ai.currentState != AIState.die) return true;
@@ -704,6 +780,26 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       }
     }
 
+    // 11. Ammo Pickup Collection: check if player is standing on any ammo box.
+    for (var i = 0; i < updatedEntities.length; i++) {
+      final entity = updatedEntities[i];
+      if (!entity.isActive) continue;
+      final pickup = entity.getComponent<PickupComponent>();
+      final transform = entity.getComponent<TransformComponent>();
+      if (pickup != null && transform != null) {
+        if ((transform.position - newPlayerPosition).length < 0.65) {
+          updatedEntities = List<GameEntity>.from(updatedEntities);
+          updatedEntities[i] = entity.copyWith(isActive: false);
+          newEffects.add(
+            AmmoPickedUpEffect(
+              ammoType: pickup.ammoType,
+              quantity: pickup.quantity,
+            ),
+          );
+        }
+      }
+    }
+
     emit(
       state.copyWith(
         lights: updatedLights,
@@ -719,7 +815,55 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     );
   }
 
+  /// Spawns ammo pickup entities at room positions spread across the map.
+  /// Called once during world initialization.
+  List<GameEntity> _spawnInitialPickups(GameMap map, Vector2 playerPos) {
+    const minDist = 3.0;
+    final rng = math.Random(map.width * 31 + map.height);
+    final pickups = <GameEntity>[];
+
+    final availableRooms = map.roomRects
+        .where(
+          (r) => Vector2(r.centerX, r.centerY).distanceTo(playerPos) >= minDist,
+        )
+        .toList()
+      ..shuffle(rng);
+
+    // Config: [(ammoType, quantity)] — up to 5 pickups spread in rooms.
+    const pickupDefs = [
+      (AmmoType.normal, 15),
+      (AmmoType.normal, 10),
+      (AmmoType.normal, 12),
+      (AmmoType.bouncing, 8),
+      (AmmoType.bouncing, 6),
+    ];
+
+    for (var i = 0; i < pickupDefs.length && i < availableRooms.length; i++) {
+      final room = availableRooms[i];
+      final jitter = (rng.nextDouble() - 0.5) * 0.8;
+      final pos = Vector2(
+        room.centerX + jitter,
+        room.centerY + (rng.nextDouble() - 0.5) * 0.8,
+      );
+      final def = pickupDefs[i];
+      pickups.add(
+        GameEntity(
+          id: 'pickup_ammo_$i',
+          components: [
+            TransformComponent(position: pos),
+            PickupComponent(ammoType: def.$1, quantity: def.$2),
+          ],
+        ),
+      );
+    }
+    return pickups;
+  }
+
   /// Creates a new enemy for survival mode, preferring rooms far from the player.
+  /// Enemy type is wave-gated:
+  ///   Wave 0-1 -> only grunts (learn the basic fight)
+  ///   Wave 2-3 -> grunts 70% + shooters 30%
+  ///   Wave 4+  -> weighted pool: grunts 50%, shooters 30%, guardians 20%
   GameEntity? _createSurvivalEnemy(GameMap map, Vector2 playerPos) {
     const minDist = 6.0;
     _enemyCounter++;
@@ -802,12 +946,60 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       id: 'enemy_dyn_$_enemyCounter',
       components: [
         TransformComponent(position: spawnPos),
-        const RenderComponent(spritePath: 'enemy_grunt'),
-        const HealthComponent(current: 40, max: 40),
-        AIComponent(detectionRange: 8, attackRange: 2, moveSpeed: 1.5),
-        AnimationComponent(animations: animations, currentState: 'idle'),
+        ..._buildEnemyComponents(animations),
       ],
     );
+  }
+
+  /// Returns the [HealthComponent], [RenderComponent], and [AIComponent]
+  /// for the enemy type chosen by the current wave.
+  List<GameComponent> _buildEnemyComponents(
+    Map<String, AnimationState> animations,
+  ) {
+    // Wave-gated enemy type selection
+    final EnemyType type;
+    if (_waveNumber <= 1) {
+      type = EnemyType.grunt;
+    } else if (_waveNumber <= 3) {
+      // 70% grunt, 30% shooter
+      type = math.Random().nextDouble() < 0.70
+          ? EnemyType.grunt
+          : EnemyType.shooter;
+    } else {
+      // 50% grunt, 30% shooter, 20% guardian
+      final roll = math.Random().nextDouble();
+      if (roll < 0.50) {
+        type = EnemyType.grunt;
+      } else if (roll < 0.80) {
+        type = EnemyType.shooter;
+      } else {
+        type = EnemyType.guardian;
+      }
+    }
+
+    switch (type) {
+      case EnemyType.grunt:
+        return [
+          const RenderComponent(spritePath: 'enemy_grunt'),
+          const HealthComponent(current: 40, max: 40),
+          AIComponent.grunt,
+          AnimationComponent(animations: animations, currentState: 'idle'),
+        ];
+      case EnemyType.shooter:
+        return [
+          const RenderComponent(spritePath: 'enemy_shooter'),
+          const HealthComponent(current: 55, max: 55), // More HP than grunt
+          AIComponent.shooter,
+          AnimationComponent(animations: animations, currentState: 'idle'),
+        ];
+      case EnemyType.guardian:
+        return [
+          const RenderComponent(spritePath: 'enemy_guardian'),
+          const HealthComponent(current: 80, max: 80), // Tanky
+          AIComponent.guardian,
+          AnimationComponent(animations: animations, currentState: 'idle'),
+        ];
+    }
   }
 
   /// Helper to update entities based on [EntityDamageResult]
@@ -887,8 +1079,105 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   /// 'The native object of SkImage was disposed' assertions.
   /// We rely on the GC to clean them up once WorldState drops the references.
   void _onLevelCleanup(LevelCleanup event, Emitter<WorldState> emit) {
+    // Reset wave / difficulty counters so the next level starts fresh.
+    _waveNumber = 0;
+    _killCount = 0;
+    _spawnTimer = 0.0;
+    _enemyCounter = 0;
     // Immediately emit empty state to clear the world.
     emit(WorldState.empty());
     LogService.info('WORLD', 'LEVEL_CLEANUP_DONE', {});
   }
-}
+
+  /// OPT: Called on the 40 Hz frames skipped by the 20 Hz AI gate.
+  /// Applies [AIComponent.cachedMoveVelocity] directly to position without
+  /// re-running LOS/FSM/pathfinding, giving smooth 60 Hz movement at a
+  /// fraction of the full AI update cost.
+  /// Covers both chase and investigate states (both use cached velocity).
+  List<AIUpdateResult> _applyVelocityOnly(
+    double dt,
+    List<GameEntity> liveEntities,
+  ) {
+    final results = <AIUpdateResult>[];
+
+    for (final entity in liveEntities) {
+      final ai = entity.getComponent<AIComponent>();
+      final transform = entity.getComponent<TransformComponent>();
+      if (ai == null ||
+          transform == null ||
+          // Only moving states benefit from velocity interpolation
+          (ai.currentState != AIState.chase &&
+           ai.currentState != AIState.investigate) ||
+          ai.cachedMoveVelocity == null) {
+        continue;
+      }
+
+      final vel = ai.cachedMoveVelocity!;
+      if (vel.length2 < 0.001) continue; // effectively zero
+
+      // Run full wall+entity collision so enemies cannot phase through
+      // walls between AI ticks (the 40 Hz interpolation frames).
+      final newPos = PhysicsSystem.tryMove(
+        entity.id,
+        transform.position,
+        vel,
+        dt,
+        state.map,
+        state.entities,
+        radius: 0.3,
+      );
+      results.add(
+        AIUpdateResult(
+          entityId: entity.id,
+          newTransform: transform.copyWith(position: newPos),
+          newAI: ai,
+        ),
+      );
+    }
+
+    return results;
+  }
+
+  /// Alerts idle/patrolling enemies within [radius] of [shotOrigin] by
+  /// transitioning them to [AIState.investigate]. Called on every player shot.
+  /// Returns the updated entities list (does NOT emit directly).
+  List<GameEntity> _alertEnemiesFromShot(
+    Vector2 shotOrigin,
+    double radius,
+    List<GameEntity> entities,
+  ) {
+    var changed = false;
+    final result = entities.map((entity) {
+      if (!entity.isActive) return entity;
+      final ai = entity.getComponent<AIComponent>();
+      final transform = entity.getComponent<TransformComponent>();
+      if (ai == null || transform == null) return entity;
+
+      // Only alert idle/patrol enemies — chasing/attacking already know
+      if (ai.currentState != AIState.idle &&
+          ai.currentState != AIState.patrol) {
+        return entity;
+      }
+
+      final dist = transform.position.distanceTo(shotOrigin);
+      if (dist > radius) return entity;
+
+      LogService.info('World', 'AI_ALERTED_SHOT', {
+        'id': entity.id,
+        'dist': dist.toStringAsFixed(1),
+      });
+
+      final newAI = ai.copyWith(
+        currentState: AIState.investigate,
+        lastStateChange: DateTime.now(),
+        investigatePosition: shotOrigin,
+      );
+      final newComponents = List<GameComponent>.from(entity.components);
+      final idx = newComponents.indexWhere((c) => c is AIComponent);
+      newComponents[idx] = newAI;
+      changed = true;
+      return entity.copyWith(components: newComponents);
+    }).toList();
+
+    return changed ? result : entities;
+  }}

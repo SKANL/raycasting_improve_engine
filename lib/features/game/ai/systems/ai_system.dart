@@ -40,8 +40,11 @@ class AISystem {
     double dt,
     List<GameEntity> entities,
     v64.Vector2 playerPosition,
-    GameMap? map,
-  ) {
+    GameMap? map, {
+    DateTime? now,
+  }) {
+    // OPT: Call DateTime.now() ONCE for all entities instead of O(n) times.
+    final nowTime = now ?? DateTime.now();
     final updates = <AIUpdateResult>[];
 
     for (final entity in entities) {
@@ -58,6 +61,7 @@ class AISystem {
         playerPosition,
         map,
         entities,
+        nowTime,
       );
       if (result != null) {
         updates.add(result);
@@ -75,6 +79,7 @@ class AISystem {
     v64.Vector2 playerPosition,
     GameMap? map,
     List<GameEntity> allEntities,
+    DateTime now,  // OPT: injected — not re-created per entity
   ) {
     // --- DEATH OPTIMIZATION ---
     // Dead entities should NOT compute Line-of-sight nor Math Distances.
@@ -102,7 +107,10 @@ class AISystem {
       return null;
     }
 
-    final distToPlayer = (playerPosition - transform.position).length;
+    // OPT: Use squared distance for detection-range check — avoids sqrt.
+    final distSq = (playerPosition - transform.position).length2;
+    // Full distance is still needed for other range comparisons (attack, contact).
+    final distToPlayer = math.sqrt(distSq);
     final hasLOS = PhysicsSystem.hasLineOfSight(
       transform.position,
       playerPosition,
@@ -121,9 +129,7 @@ class AISystem {
     final anim = entity.getComponent<AnimationComponent>();
     var newAnim = anim;
 
-    // --- STATE MACHINE ---
-    final now = DateTime.now();
-
+    // OPT: Use the injected `now` — not re-created per entity.
     // Time since last state transition
     final timeInState = ai.lastStateChange != null
         ? now.difference(ai.lastStateChange!).inMilliseconds / 1000.0
@@ -134,13 +140,54 @@ class AISystem {
         ? now.difference(ai.lastAttackTime!).inMilliseconds / 1000.0
         : 999.0;
 
-    // Removed CheckLOS 60fps logs
-
     switch (ai.currentState) {
+      // 0. INVESTIGATE: Heard a sound — moving to position without confirmed LOS.
+      // Upgrade to chase the moment we see the player.
+      case AIState.investigate:
+        if (hasLOS && distSq <= ai.detectionRange * ai.detectionRange) {
+          // Player spotted while investigating — enter combat!
+          newAI = ai.copyWith(
+            currentState: AIState.chase,
+            lastStateChange: now,
+            lastSeenPosition: playerPosition,
+            investigatePosition: null, // cleared
+          );
+          aiChanged = true;
+          LogService.info('AI', 'INVESTIGATE_SPOTTED', {'entity': entity.id});
+        } else if (ai.investigatePosition != null) {
+          final distToInvest =
+              (transform.position - ai.investigatePosition!).length;
+          if (distToInvest < 0.8) {
+            // Arrived at noise source — found nothing, return to idle.
+            newAI = ai.copyWith(
+              currentState: AIState.idle,
+              lastStateChange: now,
+              investigatePosition: null,
+            );
+            aiChanged = true;
+          } else {
+            final (movedTransform, velocity) = _moveToward(
+              dt, newAI, entity.id, transform, ai.investigatePosition!,
+              map, allEntities, playerPosition,
+            );
+            newTransform = movedTransform;
+            newAI = newAI.copyWith(cachedMoveVelocity: velocity);
+            aiChanged = true;
+            transformChanged = true;
+          }
+        } else {
+          // No position set (guard against bad state)
+          newAI = ai.copyWith(
+              currentState: AIState.idle, lastStateChange: now);
+          aiChanged = true;
+        }
+        break;
+
       // 1. IDLE: Wait for player to be seen
       case AIState.idle:
       case AIState.patrol:
-        if (hasLOS && distToPlayer <= ai.detectionRange) {
+        // OPT: distSq avoids sqrt for the hot-path detection check.
+        if (hasLOS && distSq <= ai.detectionRange * ai.detectionRange) {
           // Spotted!
           newAI = ai.copyWith(
             currentState: AIState.chase,
@@ -180,10 +227,11 @@ class AISystem {
           newAI = newAI.copyWith(
             currentState: AIState.idle,
             lastStateChange: now,
+            cachedMoveVelocity: null, // OPT: clear stale velocity on stop
           );
           aiChanged = true;
         } else {
-          final moveResult = _moveToward(
+          final (movedTransform, velocity) = _moveToward(
             dt,
             newAI,
             entity.id,
@@ -193,7 +241,10 @@ class AISystem {
             allEntities,
             playerPosition,
           );
-          newTransform = moveResult;
+          newTransform = movedTransform;
+          // OPT: Cache velocity so WorldBloc can apply it at 60Hz between 20Hz AI ticks.
+          newAI = newAI.copyWith(cachedMoveVelocity: velocity);
+          aiChanged = true;
           transformChanged = true;
         }
         break;
@@ -206,6 +257,30 @@ class AISystem {
           rotation: math.atan2(dir.y, dir.x),
         );
         transformChanged = true;
+
+        // Ranged enemies strafe perpendicular to maintain an unpredictable
+        // lateral position — makes them harder to hit. They change direction
+        // every 1.5 seconds using their entity ID for deterministic phase.
+        if (ai.attackType != AIAttackType.melee && distToPlayer > 1.5) {
+          final toPlayer = (playerPosition - transform.position).normalized();
+          final strafePhase = (timeInState / 1.5).floor();
+          // XOR with hash so different enemies strafe in opposite directions
+          final strafeSign =
+              (entity.id.hashCode ^ strafePhase) % 2 == 0 ? 1.0 : -1.0;
+          final strafeDir = v64.Vector2(
+            -toPlayer.y * strafeSign,
+            toPlayer.x * strafeSign,
+          );
+          final strafeTarget = transform.position + strafeDir * 4.0;
+          final (strafedTransform, _) = _moveToward(
+            dt, newAI, entity.id, newTransform, strafeTarget,
+            map, allEntities, playerPosition,
+          );
+          // Keep the player-facing rotation, not the strafed movement rotation
+          newTransform = strafedTransform.copyWith(
+            rotation: math.atan2(dir.y, dir.x),
+          );
+        }
 
         if (!hasLOS || distToPlayer > ai.attackRange * 1.5) {
           // target lost or fled
@@ -245,18 +320,29 @@ class AISystem {
                     ammoType: AmmoType
                         .normal, // Enemy projectiles usually don't bounce (Doom)
                     isEnemy: true,
+                    renderStyle: ProjectileRenderStyle.plasma,
                   ),
                 );
                 LogService.info('AI', 'FIRED_PROJ', {'id': entity.id});
                 break;
 
               case AIAttackType.hitscan:
-                // Simple hitscan check
-                // In Doom, enemies assume they hit if looking at you basically (with RNG spread)
-                // We'll trust the component damage
-                damageDealt = ai.projectileDamage;
-                // Create visual trail? (TODO)
-                LogService.info('AI', 'HITSCAN_FIRE', {'dmg': damageDealt});
+                // Accuracy degrades with distance — fair and avoidable at range.
+                // Close range (<=3u): ~95% hit. At full detection range: ~30%.
+                final normalizedDist =
+                    (distToPlayer / ai.detectionRange).clamp(0.0, 1.0);
+                final hitChance = 0.95 - normalizedDist * 0.65;
+                if (math.Random().nextDouble() <= hitChance) {
+                  damageDealt = ai.projectileDamage;
+                  LogService.info('AI', 'HITSCAN_FIRE', {
+                    'dmg': damageDealt,
+                    'acc': hitChance.toStringAsFixed(2),
+                  });
+                } else {
+                  LogService.info('AI', 'HITSCAN_MISS', {
+                    'dist': distToPlayer.toStringAsFixed(1),
+                  });
+                }
                 break;
             }
 
@@ -296,6 +382,7 @@ class AISystem {
         case AIState.patrol:
           targetAnim = 'idle';
           break;
+        case AIState.investigate: // Moves like walking — reuse walk frames
         case AIState.chase:
           targetAnim = 'walk';
           break;
@@ -338,7 +425,9 @@ class AISystem {
     return null;
   }
 
-  TransformComponent _moveToward(
+  /// Returns `(newTransform, velocity)` — velocity is cached by WorldBloc for
+  /// smooth 60Hz interpolation between 20Hz AI updates.
+  (TransformComponent, v64.Vector2) _moveToward(
     double dt,
     AIComponent ai,
     String entityId,
@@ -351,7 +440,7 @@ class AISystem {
     var direction = target - transform.position;
     final distance = direction.length;
 
-    if (distance <= 0.1) return transform;
+    if (distance <= 0.1) return (transform, v64.Vector2.zero());
 
     direction = direction.normalized();
 
@@ -361,7 +450,7 @@ class AISystem {
     const minContactDist = 0.65;
     if (distance <= minContactDist) {
       final newRotation = math.atan2(direction.y, direction.x);
-      return transform.copyWith(rotation: newRotation);
+      return (transform.copyWith(rotation: newRotation), v64.Vector2.zero());
     }
 
     final velocity = direction * ai.moveSpeed;
@@ -386,6 +475,6 @@ class AISystem {
     );
 
     final newRotation = math.atan2(direction.y, direction.x);
-    return transform.copyWith(position: newPos, rotation: newRotation);
+    return (transform.copyWith(position: newPos, rotation: newRotation), velocity);
   }
 }

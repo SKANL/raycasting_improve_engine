@@ -1,6 +1,7 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:raycasting_game/core/logging/log_service.dart';
+import 'package:raycasting_game/features/game/weapon/models/ammo_type.dart';
 import 'package:raycasting_game/features/game/weapon/models/weapon.dart';
 
 part 'weapon_event.dart';
@@ -12,6 +13,7 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
     on<WeaponFired>(_onWeaponFired);
     on<WeaponReloaded>(_onWeaponReloaded);
     on<WeaponSwitched>(_onWeaponSwitched);
+    on<AmmoAdded>(_onAmmoAdded);
   }
 
   void _onWeaponFired(WeaponFired event, Emitter<WeaponState> emit) {
@@ -59,5 +61,22 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
         currentAmmo: event.weapon.maxAmmo,
       ),
     );
+  }
+
+  void _onAmmoAdded(AmmoAdded event, Emitter<WeaponState> emit) {
+    // Only apply to the current weapon if its ammo type matches the pickup.
+    if (state.currentWeapon.ammoType != event.ammoType) return;
+
+    // Cap at 3 full clips to avoid infinite stacking.
+    final maxReserve = state.currentWeapon.maxAmmo * 3;
+    final newAmmo = (state.currentAmmo + event.amount).clamp(0, maxReserve);
+
+    LogService.info('WEAPON', 'AMMO_PICKED_UP', {
+      'weapon': state.currentWeapon.id,
+      'added': event.amount,
+      'total': newAmmo,
+    });
+
+    emit(state.copyWith(currentAmmo: newAmmo));
   }
 }

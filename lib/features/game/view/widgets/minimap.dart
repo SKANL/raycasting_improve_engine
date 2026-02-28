@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
+import 'package:raycasting_game/features/core/ecs/components/pickup_component.dart';
 import 'package:raycasting_game/features/core/ecs/components/transform_component.dart';
+import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
 import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
+import 'package:raycasting_game/features/game/weapon/models/ammo_type.dart';
 
 import 'dart:math' as math;
 
@@ -109,26 +111,46 @@ class _MiniMapPainter extends CustomPainter {
       }
     }
 
-    // Draw Entities (Enemies)
+    // Draw Entities (Enemies + Pickups)
     final enemyPaint = Paint()..color = Colors.red;
     for (final entity in state.entities) {
-      // Don't draw player (we draw ourselves at center later)
-      // Player entity might not be in entities list or might be special
       if (entity.id == 'player') continue;
+      // Don't render collected/dead entities
+      if (!entity.isActive) continue;
+
+      final transform = entity.getComponent<TransformComponent>();
+      if (transform == null) continue;
+
+      // Ammo pickups → distinct colour (gold for normal, green for bouncing)
+      final pickup = entity.getComponent<PickupComponent>();
+      if (pickup != null) {
+        final pickupColor = pickup.ammoType == AmmoType.bouncing
+            ? const Color(0xFF00FF88)
+            : const Color(0xFFFFDD00);
+        // Diamond shape (two triangles)
+        final px = transform.position.x;
+        final py = transform.position.y;
+        const r = 0.25;
+        final diamond = Path()
+          ..moveTo(px,     py - r)
+          ..lineTo(px + r, py)
+          ..lineTo(px,     py + r)
+          ..lineTo(px - r, py)
+          ..close();
+        canvas.drawPath(diamond, Paint()..color = pickupColor);
+        continue;
+      }
 
       // Filter out dead enemies
       final ai = entity.getComponent<AIComponent>();
       if (ai != null && ai.currentState == AIState.die) continue;
 
-      final transform = entity.getComponent<TransformComponent>();
-      if (transform != null) {
-        // Draw dot
-        canvas.drawCircle(
-          Offset(transform.position.x, transform.position.y),
-          0.3, // Size in world units
-          enemyPaint,
-        );
-      }
+      // Draw enemy dot
+      canvas.drawCircle(
+        Offset(transform.position.x, transform.position.y),
+        0.3,
+        enemyPaint,
+      );
     }
 
     canvas.restore();

@@ -2,6 +2,20 @@ import 'package:equatable/equatable.dart';
 import 'package:raycasting_game/features/game/weapon/models/ammo_type.dart';
 import 'package:vector_math/vector_math_64.dart' as v64;
 
+/// Controls how a projectile is drawn by the renderer.
+enum ProjectileRenderStyle {
+  /// Glowing plasma ball billboard — enemy projectiles and bounce weapons.
+  plasma,
+
+  /// High-speed tracer streak — visual-only for hitscan bullets. Rendered
+  /// as a perspective-correct canvas-primitive line aligned to velocity.
+  tracer,
+
+  /// Physical bolt (non-hitscan player weapon). Rendered as a larger,
+  /// brighter plasma ball with a long glowing tail.
+  bolt,
+}
+
 /// A physical projectile traveling through the world.
 ///
 /// Used for bouncing bullets and enemy attacks.
@@ -19,6 +33,8 @@ class Projectile extends Equatable {
     this.distanceTraveled = 0.0,
     this.isEnemy = false,
     this.isVisualOnly = false,
+    this.renderStyle = ProjectileRenderStyle.plasma,
+    this.visualScale = 1.0,
   });
 
   /// Unique projectile identifier (UUID)
@@ -54,6 +70,13 @@ class Projectile extends Equatable {
   /// True if this projectile is purely visual (tracer) and causes no damage/collision.
   final bool isVisualOnly;
 
+  /// How this projectile should be drawn by [RaycastRenderer].
+  final ProjectileRenderStyle renderStyle;
+
+  /// Visual size multiplier for this projectile (1.0 = normal).
+  /// Larger for high-impact weapons (bouncePistol), smaller for precision rifles.
+  final double visualScale;
+
   bool get isBouncing => ammoType == AmmoType.bouncing && bouncesLeft > 0;
 
   Projectile copyWith({
@@ -68,6 +91,8 @@ class Projectile extends Equatable {
     double? distanceTraveled,
     bool? isEnemy,
     bool? isVisualOnly,
+    ProjectileRenderStyle? renderStyle,
+    double? visualScale,
   }) {
     return Projectile(
       id: id ?? this.id,
@@ -81,6 +106,8 @@ class Projectile extends Equatable {
       distanceTraveled: distanceTraveled ?? this.distanceTraveled,
       isEnemy: isEnemy ?? this.isEnemy,
       isVisualOnly: isVisualOnly ?? this.isVisualOnly,
+      renderStyle: renderStyle ?? this.renderStyle,
+      visualScale: visualScale ?? this.visualScale,
     );
   }
 
@@ -96,5 +123,7 @@ class Projectile extends Equatable {
     maxRange,
     distanceTraveled,
     isEnemy,
+    renderStyle,
+    visualScale,
   ];
 }

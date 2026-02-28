@@ -1,31 +1,306 @@
 Analyzing raycasting_game...                                    
 
-   info - Use the constant 'Offset.zero' rather than a constructor returning the same object - lib\features\core\input\bloc\input_state.dart:9:23 - use_named_constants
-   info - Use 'const' with the constructor to improve performance - lib\features\core\world\bloc\world_bloc.dart:69:24 - prefer_const_constructors
-   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:71:28 - avoid_redundant_argument_values
-warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:93:32 - unnecessary_null_comparison
-warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:94:36 - unnecessary_null_comparison
-warning - The operand can't be 'null', so the condition is always 'true' - lib\features\core\world\bloc\world_bloc.dart:95:34 - unnecessary_null_comparison
-   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:234:5 - prefer_final_locals
-   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\systems\ai_system.dart:107:27 - avoid_redundant_argument_values
-   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:51:14 - prefer_int_literals
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:50:29 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:52:46 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:76:39 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:78:58 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:95:45 - deprecated_member_use
-   info - To-do comment doesn't follow the Flutter style - lib\features\game\view\widgets\game_hud.dart:105:33 - flutter_style_todos
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:112:47 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:141:33 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:145:35 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:146:33 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:178:47 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:179:45 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:237:30 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:278:30 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:296:29 - deprecated_member_use
-   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\view\widgets\game_hud.dart:298:48 - deprecated_member_use
-   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:48:15 - prefer_int_literals
-   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:49:12 - prefer_int_literals
-   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:58:12 - prefer_int_literals
+   info - Constructors in '@immutable' classes should be declared as 'const' - lib\features\core\ecs\components\animation_component.dart:21:3 - prefer_const_constructors_in_immutables
+   info - The referenced name isn't visible in scope - lib\features\core\ecs\components\pickup_component.dart:7:25 - comment_references
+warning - Unused import: 'package:flutter/material.dart' - lib\features\core\input\bloc\input_bloc.dart:3:8 - unused_import
+   info - Unnecessary use of a 'double' literal - lib\features\core\level\bloc\level_bloc.dart:22:24 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\core\level\bloc\level_bloc.dart:61:24 - prefer_int_literals
+   info - Sort directive sections alphabetically - lib\features\core\level\view\victory_screen.dart:6:1 - directives_ordering
+   info - 'Future'-returning calls in a non-'async' function - lib\features\core\level\view\victory_screen.dart:28:8 - discarded_futures
+   info - Unnecessary use of a 'double' literal - lib\features\core\level\view\victory_screen.dart:31:49 - prefer_int_literals
+   info - Use 'const' with the constructor to improve performance - lib\features\core\level\view\victory_screen.dart:63:21 - prefer_const_constructors
+   info - Use 'const' with the constructor to improve performance - lib\features\core\level\view\victory_screen.dart:64:21 - prefer_const_constructors
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\level\view\victory_screen.dart:65:21 - avoid_redundant_argument_values
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\core\level\view\victory_screen.dart:67:21 - prefer_const_literals_to_create_immutables
+   info - Use 'const' with the constructor to improve performance - lib\features\core\level\view\victory_screen.dart:109:19 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\core\level\view\victory_screen.dart:110:31 - prefer_const_literals_to_create_immutables
+   info - Sort directive sections alphabetically - lib\features\core\world\bloc\world_bloc.dart:10:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\core\world\bloc\world_bloc.dart:18:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\core\world\bloc\world_bloc.dart:28:1 - directives_ordering
+   info - The imported package 'uuid' isn't a dependency of the importing package - lib\features\core\world\bloc\world_bloc.dart:29:8 - depend_on_referenced_packages
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:52:24 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:54:41 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:64:41 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:68:27 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:85:25 - avoid_redundant_argument_values
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:126:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:205:7 - prefer_final_locals
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:368:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:369:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:370:5 - prefer_final_locals
+   info - Unnecessary type annotation on a local variable - lib\features\core\world\bloc\world_bloc.dart:409:15 - omit_local_variable_types
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:421:23 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:423:23 - prefer_int_literals
+   info - Unnecessary type annotation on a local variable - lib\features\core\world\bloc\world_bloc.dart:439:13 - omit_local_variable_types
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:451:24 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\core\world\bloc\world_bloc.dart:519:7 - prefer_int_literals
+   info - Statements in an if should be enclosed in a block - lib\features\core\world\bloc\world_bloc.dart:601:13 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\features\core\world\bloc\world_bloc.dart:681:13 - curly_braces_in_flow_control_structures
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:710:21 - avoid_redundant_argument_values
+   info - Statements in an if should be enclosed in a block - lib\features\core\world\bloc\world_bloc.dart:756:9 - curly_braces_in_flow_control_structures
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:927:15 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:940:24 - avoid_redundant_argument_values
+   info - The variable 'r' should be final - lib\features\core\world\bloc\world_bloc.dart:1013:33 - prefer_final_in_for_each
+   info - Local variables should be final - lib\features\core\world\bloc\world_bloc.dart:1019:7 - prefer_final_locals
+   info - The value of the argument is redundant because it matches the default value - lib\features\core\world\bloc\world_bloc.dart:1127:17 - avoid_redundant_argument_values
+   info - Missing a newline at the end of the file - lib\features\core\world\bloc\world_bloc.dart:1183:5 - eol_at_end_of_file
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\components\ai_component.dart:125:16 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\components\ai_component.dart:126:17 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\components\ai_component.dart:127:21 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\game\ai\components\ai_component.dart:142:18 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\ai\components\ai_component.dart:157:18 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\ai\components\ai_component.dart:158:16 - prefer_int_literals
+   info - The imported package 'uuid' isn't a dependency of the importing package - lib\features\game\ai\systems\ai_system.dart:12:8 - depend_on_referenced_packages
+   info - Unnecessary type annotation on a local variable - lib\features\game\ai\systems\ai_system.dart:88:7 - omit_local_variable_types
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:184:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:200:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:250:9 - unnecessary_breaks
+   info - Use 'isEven' rather than '% 2' - lib\features\game\ai\systems\ai_system.dart:269:15 - use_is_even_rather_than_modulo
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:307:17 - unnecessary_breaks
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\systems\ai_system.dart:320:31 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\systems\ai_system.dart:323:34 - avoid_redundant_argument_values
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:327:17 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:346:17 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:359:9 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:370:9 - unnecessary_breaks
+   info - Unnecessary type annotation on a local variable - lib\features\game\ai\systems\ai_system.dart:379:7 - omit_local_variable_types
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:384:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:388:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:391:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:394:11 - unnecessary_breaks
+   info - Unnecessary 'break' statement - lib\features\game\ai\systems\ai_system.dart:397:11 - unnecessary_breaks
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\ai\systems\ai_system.dart:474:15 - avoid_redundant_argument_values
+   info - The referenced name isn't visible in scope - lib\features\game\models\projectile.dart:22:22 - comment_references
+   info - The referenced name isn't visible in scope - lib\features\game\models\projectile.dart:73:47 - comment_references
+   info - The import of 'package:flame/events.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flame/input.dart' - lib\features\game\raycasting_game.dart:3:8 - unnecessary_import
+   info - Sort directive sections alphabetically - lib\features\game\raycasting_game.dart:9:1 - directives_ordering
+   info - Place 'dart:' imports before other imports - lib\features\game\raycasting_game.dart:12:1 - directives_ordering
+   info - Use 'late' for private members with a non-nullable type - lib\features\game\raycasting_game.dart:52:23 - use_late_for_private_fields_and_variables
+   info - Use 'late' for private members with a non-nullable type - lib\features\game\raycasting_game.dart:53:23 - use_late_for_private_fields_and_variables
+   info - 'Future'-returning calls in a non-'async' function - lib\features\game\raycasting_game.dart:133:23 - discarded_futures
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\raycasting_game.dart:294:17 - avoid_redundant_argument_values
+   info - 'HasGameRef' is deprecated and shouldn't be used. Use HasGameReference instead. This mixin will be removed in a future version of Flame - lib\features\game\render\hud\damage_flash_component.dart:4:59 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\hud\damage_flash_component.dart:7:21 - prefer_int_literals
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\render\hud\damage_flash_component.dart:33:38 - deprecated_member_use
+   info - 'HasGameRef' is deprecated and shouldn't be used. Use HasGameReference instead. This mixin will be removed in a future version of Flame - lib\features\game\render\hud\game_over_overlay.dart:4:54 - deprecated_member_use
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\render\hud\game_over_overlay.dart:21:22 - avoid_redundant_argument_values
+   info - Sort directive sections alphabetically - lib\features\game\render\raycast_renderer.dart:14:1 - directives_ordering
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:37:71 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:41:24 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:42:24 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:98:30 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:106:44 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\render\raycast_renderer.dart:126:18 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:149:36 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:235:22 - prefer_int_literals
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:280:11 - omit_local_variable_types
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:280:26 - prefer_int_literals
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:285:11 - omit_local_variable_types
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:285:28 - prefer_int_literals
+   info - Use 'const' for final variables initialized to a constant value - lib\features\game\render\raycast_renderer.dart:323:13 - prefer_const_declarations
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:326:43 - prefer_int_literals
+   info - Use 'const' for final variables initialized to a constant value - lib\features\game\render\raycast_renderer.dart:355:11 - prefer_const_declarations
+   info - Unnecessary use of a 'double' literal - lib\features\game\render\raycast_renderer.dart:358:41 - prefer_int_literals
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\game\render\raycast_renderer.dart:507:60 - deprecated_member_use
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:545:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:546:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:547:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:749:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:750:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:751:11 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\render\raycast_renderer.dart:752:11 - omit_local_variable_types
+   info - Use 'const' for final variables initialized to a constant value - lib\features\game\render\raycast_renderer.dart:1328:7 - prefer_const_declarations
+   info - The referenced name isn't visible in scope - lib\features\game\render\shader_manager.dart:8:49 - comment_references
+   info - The referenced name isn't visible in scope - lib\features\game\render\shader_manager.dart:8:60 - comment_references
+   info - Use 'late' for private members with a non-nullable type - lib\features\game\render\shader_manager.dart:12:27 - use_late_for_private_fields_and_variables
+   info - The referenced name isn't visible in scope - lib\features\game\systems\damage_system.dart:28:27 - comment_references
+   info - Unnecessary type annotation on a local variable - lib\features\game\systems\damage_system.dart:57:7 - omit_local_variable_types
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:2:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:3:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:4:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\physics_system.dart:5:1 - directives_ordering
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:108:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:163:5 - prefer_final_locals
+   info - Local variables should be final - lib\features\game\systems\physics_system.dart:168:5 - prefer_final_locals
+   info - Sort directive sections alphabetically - lib\features\game\systems\projectile_system.dart:3:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\projectile_system.dart:4:1 - directives_ordering
+   info - Sort directive sections alphabetically - lib\features\game\systems\projectile_system.dart:6:1 - directives_ordering
+   info - Multiple variables declared on a single line - lib\features\game\systems\projectile_system.dart:198:16 - avoid_multiple_declarations_per_line
+   info - Multiple variables declared on a single line - lib\features\game\systems\projectile_system.dart:199:23 - avoid_multiple_declarations_per_line
+   info - Unnecessary type annotation on a local variable - lib\features\game\systems\projectile_system.dart:216:5 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\systems\projectile_system.dart:217:5 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - lib\features\game\systems\projectile_system.dart:301:5 - omit_local_variable_types
+   info - Unnecessary use of parentheses - lib\features\game\utils\texture_generator.dart:226:33 - unnecessary_parenthesis
+   info - Unnecessary use of parentheses - lib\features\game\utils\texture_generator.dart:244:33 - unnecessary_parenthesis
+   info - 'alpha' is deprecated and shouldn't be used. Use (*.a * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1570:13 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1571:14 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1572:14 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1573:14 - deprecated_member_use
+   info - 'alpha' is deprecated and shouldn't be used. Use (*.a * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1576:13 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1577:14 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1578:14 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1579:14 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1654:24 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1654:46 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1655:44 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1660:58 - prefer_int_literals
+   info - Unnecessary 'break' statement - lib\features\game\utils\texture_generator.dart:1670:9 - unnecessary_breaks
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1687:40 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1687:62 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1704:40 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1704:62 - prefer_int_literals
+   info - Unnecessary 'break' statement - lib\features\game\utils\texture_generator.dart:1727:9 - unnecessary_breaks
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1770:22 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1770:28 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1770:34 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1770:40 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1781:40 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1781:62 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1782:44 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1794:46 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1803:22 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1803:28 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1803:34 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1803:40 - prefer_int_literals
+   info - Unnecessary 'break' statement - lib\features\game\utils\texture_generator.dart:1805:9 - unnecessary_breaks
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1812:56 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1812:67 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1812:80 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1813:56 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1813:67 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1813:80 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1827:49 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1827:60 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1827:73 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1839:48 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1839:59 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1839:72 - deprecated_member_use
+   info - Unnecessary 'break' statement - lib\features\game\utils\texture_generator.dart:1856:9 - unnecessary_breaks
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1863:56 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1863:67 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1863:80 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1864:56 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1864:67 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1864:80 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1871:49 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1871:60 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1871:73 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1885:48 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1885:59 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1885:72 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1902:48 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1902:59 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1902:72 - deprecated_member_use
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1908:48 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1908:59 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1908:72 - deprecated_member_use
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1922:22 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\utils\texture_generator.dart:1922:28 - prefer_int_literals
+   info - 'red' is deprecated and shouldn't be used. Use (*.r * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1937:49 - deprecated_member_use
+   info - 'green' is deprecated and shouldn't be used. Use (*.g * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1937:60 - deprecated_member_use
+   info - 'blue' is deprecated and shouldn't be used. Use (*.b * 255.0).round().clamp(0, 255) - lib\features\game\utils\texture_generator.dart:1937:73 - deprecated_member_use
+   info - Unnecessary 'break' statement - lib\features\game\utils\texture_generator.dart:1944:9 - unnecessary_breaks
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\view\widgets\game_hud.dart:39:29 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\game\view\widgets\game_hud.dart:40:29 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\view\widgets\game_hud.dart:169:50 - avoid_redundant_argument_values
+   info - Use 'const' with the constructor to improve performance - lib\features\game\view\widgets\game_hud.dart:188:26 - prefer_const_constructors
+   info - Use 'const' literals as arguments to constructors of '@immutable' classes - lib\features\game\view\widgets\game_hud.dart:190:31 - prefer_const_literals_to_create_immutables
+   info - Unnecessary use of a 'double' literal - lib\features\game\view\widgets\game_hud.dart:197:42 - prefer_int_literals
+   info - Place 'dart:' imports before other imports - lib\features\game\view\widgets\minimap.dart:8:1 - directives_ordering
+   info - Required named parameters should be before optional named parameters - lib\features\game\view\widgets\minimap.dart:13:19 - always_put_required_named_parameters_first
+   info - Unnecessary use of a 'double' literal - lib\features\game\view\widgets\minimap.dart:107:55 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\view\widgets\minimap.dart:107:60 - prefer_int_literals
+   info - The referenced name isn't visible in scope - lib\features\game\weapon\models\ammo_type.dart:7:14 - comment_references
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:88:15 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:89:12 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - lib\features\game\weapon\models\weapon.dart:90:30 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:100:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:112:15 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:113:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:125:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:128:22 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:139:15 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:140:12 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - lib\features\game\weapon\models\weapon.dart:143:22 - prefer_int_literals
+   info - 'Future'-returning calls in a non-'async' function - test\features\core\world\bloc\world_bloc_aggressive_test.dart:17:17 - discarded_futures
+   info - The value of the argument is redundant because it matches the default value - test\features\core\world\bloc\world_bloc_combat_test.dart:26:19 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\core\world\bloc\world_bloc_combat_test.dart:28:26 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\core\world\bloc\world_bloc_combat_test.dart:54:19 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\core\world\bloc\world_bloc_combat_test.dart:56:26 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\damage_system_test.dart:18:47 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:31:13 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:41:25 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:45:29 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:52:53 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:84:53 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:94:53 - avoid_redundant_argument_values
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:105:53 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\damage_system_test.dart:115:69 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\damage_system_test.dart:128:53 - avoid_redundant_argument_values
+   info - Unnecessary type annotation on a local variable - test\features\game\systems\physics_system_aggressive_test.dart:21:12 - omit_local_variable_types
+   info - Unnecessary type annotation on a local variable - test\features\game\systems\physics_system_aggressive_test.dart:25:12 - omit_local_variable_types
+   info - Use 'const' for final variables initialized to a constant value - test\features\game\systems\physics_system_aggressive_test.dart:35:7 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - test\features\game\systems\physics_system_aggressive_test.dart:61:7 - prefer_const_declarations
+   info - Use 'const' for final variables initialized to a constant value - test\features\game\systems\physics_system_aggressive_test.dart:82:7 - prefer_const_declarations
+   info - Catch clause should use 'on' to specify the type of exception being caught - test\features\game\systems\physics_system_aggressive_test.dart:93:9 - avoid_catches_without_on_clauses
+   info - Sort directive sections alphabetically - test\features\game\systems\projectile_system_test.dart:4:1 - directives_ordering
+   info - Sort directive sections alphabetically - test\features\game\systems\projectile_system_test.dart:5:1 - directives_ordering
+   info - Sort directive sections alphabetically - test\features\game\systems\projectile_system_test.dart:6:1 - directives_ordering
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:48:38 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:48:43 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:49:38 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:49:44 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\projectile_system_test.dart:59:19 - avoid_redundant_argument_values
+   info - Use 'const' for final variables initialized to a constant value - test\features\game\systems\projectile_system_test.dart:68:7 - prefer_const_declarations
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:91:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:91:32 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:110:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:110:32 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:135:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:135:31 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:136:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:136:32 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:139:70 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:155:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:155:32 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:156:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:156:31 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:160:43 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:176:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:176:31 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\features\game\systems\projectile_system_test.dart:177:18 - avoid_redundant_argument_values
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:180:70 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:196:26 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:196:31 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\features\game\systems\projectile_system_test.dart:197:19 - prefer_int_literals
+   info - Use 'const' for final variables initialized to a constant value - test\features\game\systems\projectile_system_test.dart:200:7 - prefer_const_declarations
+   info - Sort directive sections alphabetically - test\features\game\weapon\bloc\weapon_bloc_test.dart:2:1 - directives_ordering
+   info - 'Future'-returning calls in a non-'async' function - test\features\game\weapon\bloc\weapon_bloc_test.dart:15:18 - discarded_futures
+   info - The imported package 'test' isn't a dependency of the importing package - test\physics_diagnostic_test.dart:1:8 - depend_on_referenced_packages
+   info - Sort directive sections alphabetically - test\physics_diagnostic_test.dart:3:1 - directives_ordering
+   info - Sort directive sections alphabetically - test\physics_diagnostic_test.dart:4:1 - directives_ordering
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:15:37 - prefer_int_literals
+   info - Don't invoke 'print' in production code - test\physics_diagnostic_test.dart:31:7 - avoid_print
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:37:32 - prefer_int_literals
+   info - Don't invoke 'print' in production code - test\physics_diagnostic_test.dart:53:7 - avoid_print
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:68:33 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:68:38 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:69:37 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:78:40 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\physics_diagnostic_test.dart:86:17 - avoid_redundant_argument_values
+   info - Don't invoke 'print' in production code - test\physics_diagnostic_test.dart:90:7 - avoid_print
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:103:35 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:103:40 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:104:39 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:113:41 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\physics_diagnostic_test.dart:121:19 - avoid_redundant_argument_values
+   info - Don't invoke 'print' in production code - test\physics_diagnostic_test.dart:125:9 - avoid_print
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:137:33 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:137:38 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:138:32 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:138:37 - prefer_int_literals
+   info - Unnecessary use of a 'double' literal - test\physics_diagnostic_test.dart:147:32 - prefer_int_literals
+   info - The value of the argument is redundant because it matches the default value - test\physics_diagnostic_test.dart:155:17 - avoid_redundant_argument_values
+   info - Don't invoke 'print' in production code - test\physics_diagnostic_test.dart:160:7 - avoid_print
 
+302 issues found. (ran in 6.6s)

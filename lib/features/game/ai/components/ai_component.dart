@@ -3,14 +3,22 @@ import 'package:vector_math/vector_math_64.dart' as v64;
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
+/// Categorises the enemy archetype — used for sprint variety in wave spawning.
+enum EnemyType {
+  grunt,    // Fast melee bruiser
+  shooter,  // Mid-range ranged attacker
+  guardian, // Slow long-range hitscan sniper
+}
+
 /// Extended AI states for Doom-like behavior
 enum AIState {
-  idle, // Waiting for player (look() check each tick)
-  chase, // Has LOS or hunting last known position
-  attack, // In range: firing or melee
-  pain, // Stunned briefly after taking damage
-  die, // Death animation playing
-  patrol, // Wander/waypoint patrol (legacy)
+  idle,        // Waiting for player (LOS check each tick)
+  investigate, // Heard a sound — moving to check it out (no LOS yet)
+  chase,       // Has LOS or hunting last-known position
+  attack,      // In range: firing or melee
+  pain,        // Stunned briefly after taking damage
+  die,         // Death animation playing
+  patrol,      // Wander/waypoint patrol (legacy)
 }
 
 /// How the enemy deals damage when in [AIState.attack]
@@ -32,8 +40,10 @@ enum AIAttackType {
 class AIComponent extends GameComponent {
   const AIComponent({
     this.currentState = AIState.idle,
+    this.enemyType = EnemyType.grunt,
     this.attackType = AIAttackType.melee,
     this.targetPosition,
+    this.investigatePosition,
     this.detectionRange = 10,
     this.attackRange = 1.5,
     this.moveSpeed = 2,
@@ -46,16 +56,24 @@ class AIComponent extends GameComponent {
     this.lastSeenPosition,
     this.reactionTime = 0.5,
     this.painChance = 0.3,
+    this.cachedMoveVelocity,
   });
 
   /// Current FSM state
   final AIState currentState;
+
+  /// Enemy archetype — determines spawn visuals and difficulty class
+  final EnemyType enemyType;
 
   /// How the enemy attacks when in [AIState.attack]
   final AIAttackType attackType;
 
   /// Target position for patrol waypoints or chase destination
   final v64.Vector2? targetPosition;
+
+  /// Position to walk towards in [AIState.investigate] (source of heard sound).
+  /// Cleared once the enemy arrives or finds the player.
+  final v64.Vector2? investigatePosition;
 
   /// Vision radius for player detection (world units)
   final double detectionRange;
@@ -93,48 +111,65 @@ class AIComponent extends GameComponent {
   /// Probability (0.0–1.0) to enter [AIState.pain] when hit
   final double painChance;
 
+  /// OPT: Velocity vector from the last 20Hz AI decision.
+  /// Applied every frame (60Hz) between AI updates for smooth motion.
+  /// Only valid when [currentState] == [AIState.chase].
+  final v64.Vector2? cachedMoveVelocity;
+
   // ─── Presets ─────────────────────────────────────────────────────────────
 
-  /// Fast melee enemy. High pain chance.
+  /// Fast melee brute.
+  /// High pain chance so the player can stagger them up close.
+  /// Low detection range (rushes only when sees you — fair!).
   static const grunt = AIComponent(
+    enemyType: EnemyType.grunt,
     attackType: AIAttackType.melee,
     detectionRange: 10,
-    attackRange: 1.5,
-    moveSpeed: 2.5,
-    meleeDamage: 8, // Reduced from 15
-    attackCooldown: 1.0,
-    painChance: 0.6,
+    attackRange: 1.3,
+    moveSpeed: 2.8,    // Hard to outrun, but not impossible
+    meleeDamage: 10,   // ~10 hits to die — fair vs. 100 HP
+    attackCooldown: 0.9,
+    painChance: 0.55,  // Staggers often — player can stop the rush if accurate
+    reactionTime: 0.4,
   );
 
-  /// Ranged projectile enemy. Medium speed.
+  /// Mid-range projectile shooter.
+  /// Stays at medium range, slow projectiles are dodgeable.
   static const shooter = AIComponent(
+    enemyType: EnemyType.shooter,
     attackType: AIAttackType.projectile,
-    detectionRange: 15,
-    attackRange: 12.0,
-    moveSpeed: 1.8,
-    projectileDamage: 12, // Reduced from 20
-    projectileSpeed: 8.0,
-    attackCooldown: 1.5,
-    painChance: 0.3,
+    detectionRange: 14,
+    attackRange: 10.0,
+    moveSpeed: 1.6,
+    projectileDamage: 14,  // Balanced: ~7 hits to die
+    projectileSpeed: 6.5,  // Slow enough to dodge with strafing
+    attackCooldown: 1.8,   // Long cooldown → predictable rhythm
+    painChance: 0.35,
+    reactionTime: 0.6,
   );
 
-  /// Powerful hitscan enemy. Tanky, slow.
+  /// Long-range hitscan sniper. Slow, rare, scary.
+  /// Accuracy degrades with distance (implemented in AISystem).
   static const guardian = AIComponent(
+    enemyType: EnemyType.guardian,
     attackType: AIAttackType.hitscan,
-    detectionRange: 18,
-    attackRange: 16.0,
-    moveSpeed: 1.2,
-    projectileDamage: 25, // Reduced from 35
-    attackCooldown: 2.0,
-    painChance: 0.15,
+    detectionRange: 20,
+    attackRange: 18.0,
+    moveSpeed: 1.0,         // Slow — player can close the gap
+    projectileDamage: 22,   // Dangerous but not lethal in one hit (100 HP player)
+    attackCooldown: 2.5,    // Long cooldown → player has time to find cover
+    painChance: 0.12,       // Hard to stagger — toughest enemy
+    reactionTime: 0.8,      // Long reaction time — telegraphs the attack
   );
 
   // ─── copyWith ─────────────────────────────────────────────────────────────
 
   AIComponent copyWith({
     AIState? currentState,
+    EnemyType? enemyType,
     AIAttackType? attackType,
     v64.Vector2? targetPosition,
+    Object? investigatePosition = _keep,
     double? detectionRange,
     double? attackRange,
     double? moveSpeed,
@@ -147,11 +182,16 @@ class AIComponent extends GameComponent {
     v64.Vector2? lastSeenPosition,
     double? reactionTime,
     double? painChance,
+    Object? cachedMoveVelocity = _keep,
   }) {
     return AIComponent(
       currentState: currentState ?? this.currentState,
+      enemyType: enemyType ?? this.enemyType,
       attackType: attackType ?? this.attackType,
       targetPosition: targetPosition ?? this.targetPosition,
+      investigatePosition: identical(investigatePosition, _keep)
+          ? this.investigatePosition
+          : investigatePosition as v64.Vector2?,
       detectionRange: detectionRange ?? this.detectionRange,
       attackRange: attackRange ?? this.attackRange,
       moveSpeed: moveSpeed ?? this.moveSpeed,
@@ -164,14 +204,22 @@ class AIComponent extends GameComponent {
       lastSeenPosition: lastSeenPosition ?? this.lastSeenPosition,
       reactionTime: reactionTime ?? this.reactionTime,
       painChance: painChance ?? this.painChance,
+      cachedMoveVelocity: identical(cachedMoveVelocity, _keep)
+          ? this.cachedMoveVelocity
+          : cachedMoveVelocity as v64.Vector2?,
     );
   }
+
+  // Private sentinel so copyWith can distinguish "keep" from explicit null.
+  static const Object _keep = Object();
 
   @override
   List<Object?> get props => [
     currentState,
+    enemyType,
     attackType,
     targetPosition,
+    // investigatePosition excluded — transient navigation data
     detectionRange,
     attackRange,
     moveSpeed,
@@ -184,5 +232,6 @@ class AIComponent extends GameComponent {
     lastSeenPosition,
     reactionTime,
     painChance,
+    // cachedMoveVelocity excluded — transient optimisation data
   ];
 }

@@ -5,11 +5,13 @@ import 'package:raycasting_game/features/core/world/models/game_entity.dart';
 /// System that advances animation timers for all entities with AnimationComponent.
 class AnimationSystem {
   List<GameEntity> update(double dt, List<GameEntity> entities) {
-    var changed = false;
-    final updatedEntities = List<GameEntity>.from(entities);
+    // OPT: Lazy copy — only allocate a mutable list when at least one entity
+    // actually changes. Most frames (idle scenes, no enemies near) change
+    // nothing, so we avoid the O(n) List.from allocation entirely.
+    List<GameEntity>? updatedEntities;
 
-    for (var i = 0; i < updatedEntities.length; i++) {
-      final entity = updatedEntities[i];
+    for (var i = 0; i < entities.length; i++) {
+      final entity = entities[i];
       if (!entity.isActive) continue;
 
       final anim = entity.getComponent<AnimationComponent>();
@@ -59,6 +61,8 @@ class AnimationSystem {
       if (newFrame != anim.currentFrame ||
           newTimer != anim.timer ||
           (render != null && render.opacity != newOpacity)) {
+        // OPT: Lazy alloc — only pay the O(n) copy cost on the first mutation.
+        updatedEntities ??= List<GameEntity>.from(entities);
         updatedEntities[i] = entity.copyWith(
           isActive: !shouldRemove, // Deactivate if fully faded
           components: entity.components.map((c) {
@@ -74,10 +78,9 @@ class AnimationSystem {
             return c;
           }).toList(),
         );
-        changed = true;
       }
     }
 
-    return changed ? updatedEntities : entities;
+    return updatedEntities ?? entities;
   }
 }

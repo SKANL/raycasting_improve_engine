@@ -207,3 +207,22 @@ class ProjectileHitEffect extends WorldEffect {
   final Vector2 position;
   final bool isEnemy;
 }
+
+/// Effect: A bouncing projectile reflected off a wall at [position].
+class BounceEffect extends WorldEffect {
+  const BounceEffect(this.position);
+  final Vector2 position;
+}
+
+/// Effect: A non-bouncing projectile hit a wall — spawn a bullet decal.
+class WallHitEffect extends WorldEffect {
+  const WallHitEffect(this.position);
+  final Vector2 position;
+}
+
+/// Effect: Player walked over an ammo pickup.
+class AmmoPickedUpEffect extends WorldEffect {
+  const AmmoPickedUpEffect({required this.ammoType, required this.quantity});
+  final AmmoType ammoType;
+  final int quantity;
+}

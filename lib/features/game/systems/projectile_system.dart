@@ -11,6 +11,8 @@ class ProjectileUpdateResult {
     required this.surviving,
     required this.entityHits,
     required this.playerHits,
+    required this.wallBounces,
+    required this.wallHits,
   });
 
   /// Projectiles that are still alive after this tick.
@@ -21,6 +23,12 @@ class ProjectileUpdateResult {
 
   /// Total damage dealt to the player this tick (from enemy projectiles).
   final int playerHits;
+
+  /// World positions where bounces occurred this tick (for visual effects).
+  final List<v64.Vector2> wallBounces;
+
+  /// World positions where non-bouncing projectiles hit walls (for decals).
+  final List<v64.Vector2> wallHits;
 }
 
 /// Simulates all active [Projectile] entities each game tick.
@@ -33,8 +41,12 @@ class ProjectileUpdateResult {
 ///   3. Entity hit (circle sweep): damage + destroy
 ///   4. Range check: if distanceTraveled > maxRange → destroy
 class ProjectileSystem {
-  /// Energy retained after each bounce (70% speed kept).
-  static const bounceFactor = 0.70;
+  /// Energy retained after each bounce (85 % speed kept — more elastic, more fun).
+  static const bounceFactor = 0.85;
+
+  /// Minimum distance to nudge a bounced projectile off the wall face,
+  /// preventing the same wall from being re-detected on the very next tick.
+  static const _bounceNudge = 0.04;
 
   /// Collision hit radius for entity detection.
   static const hitRadius = 0.45;
@@ -49,6 +61,8 @@ class ProjectileSystem {
     final surviving = <Projectile>[];
     final entityHits = <String, int>{};
     var playerHits = 0;
+    final wallBounces = <v64.Vector2>[];
+    final wallHits = <v64.Vector2>[];
 
     for (final proj in projectiles) {
       final result = _step(proj, entities, playerPosition, map, dt);
@@ -60,6 +74,12 @@ class ProjectileSystem {
       if (result.hitPlayer) {
         playerHits += proj.damage;
       }
+      if (result.bouncePos != null) {
+        wallBounces.add(result.bouncePos!);
+      }
+      if (result.wallHitPos != null) {
+        wallHits.add(result.wallHitPos!);
+      }
       if (result.updated != null) {
         surviving.add(result.updated!);
       }
@@ -69,6 +89,8 @@ class ProjectileSystem {
       surviving: surviving,
       entityHits: entityHits,
       playerHits: playerHits,
+      wallBounces: wallBounces,
+      wallHits: wallHits,
     );
   }
 
@@ -101,17 +123,22 @@ class ProjectileSystem {
         final dot = proj.velocity.dot(n);
         final reflected = (proj.velocity - n * (2.0 * dot)) * bounceFactor;
 
+        // Nudge the projectile off the wall face so the next DDA step cannot
+        // immediately re-detect the same wall (prevents it getting stuck).
+        final nudgedPos = wallResult.hitPoint + n * _bounceNudge;
+
         final bounced = proj.copyWith(
-          position: wallResult.hitPoint,
+          position: nudgedPos,
           velocity: reflected,
           bouncesLeft: proj.bouncesLeft - 1,
           distanceTraveled: proj.distanceTraveled + stepDist,
         );
         // If we just used the last bounce, this projectile won't be marked as
         // bouncing anymore (isBouncing checks bouncesLeft > 0).
-        return _StepResult(updated: bounced);
+        return _StepResult(updated: bounced, bouncePos: wallResult.hitPoint);
       } else {
-        return const _StepResult(); // destroy: hit wall, no bounce
+        // Non-bouncing: record wall hit position for decal
+        return _StepResult(wallHitPos: wallResult.hitPoint); // destroy: hit wall, no bounce
       }
     }
 
@@ -300,6 +327,8 @@ class _StepResult {
     this.updated,
     this.entityId,
     this.hitPlayer = false,
+    this.bouncePos,
+    this.wallHitPos,
   });
 
   /// Non-null if the projectile survived this tick.
@@ -310,4 +339,10 @@ class _StepResult {
 
   /// True if the player was hit by an enemy projectile (destroyed).
   final bool hitPlayer;
+
+  /// Non-null if a wall bounce occurred this tick (for visual effects).
+  final v64.Vector2? bouncePos;
+
+  /// Non-null if a non-bouncing projectile hit a wall (for decals).
+  final v64.Vector2? wallHitPos;
 }

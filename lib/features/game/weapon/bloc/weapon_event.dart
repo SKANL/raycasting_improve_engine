@@ -26,3 +26,14 @@ class WeaponSwitched extends WeaponEvent {
   @override
   List<Object?> get props => [weapon];
 }
+
+/// Add ammo from a world pickup to the current (or target) weapon.
+class AmmoAdded extends WeaponEvent {
+  const AmmoAdded({required this.ammoType, required this.amount});
+
+  final AmmoType ammoType;
+  final int amount;
+
+  @override
+  List<Object?> get props => [ammoType, amount];
+}

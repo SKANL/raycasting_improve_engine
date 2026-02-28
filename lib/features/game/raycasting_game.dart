@@ -108,6 +108,16 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
             gameBloc.add(PlayerDamaged(effect.amount));
           } else if (effect is EnemyKilledEffect) {
             levelBloc.add(const EnemyKilledRegistered());
+          } else if (effect is BounceEffect) {
+            _renderer?.spawnBounceEffect(
+                v64.Vector2(effect.position.x, effect.position.y));
+          } else if (effect is WallHitEffect) {
+            _renderer?.spawnWallDecal(
+                v64.Vector2(effect.position.x, effect.position.y));
+          } else if (effect is AmmoPickedUpEffect) {
+            weaponBloc.add(
+              AmmoAdded(ammoType: effect.ammoType, amount: effect.quantity),
+            );
           }
         }
       }

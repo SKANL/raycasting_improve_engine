@@ -115,33 +115,33 @@ class Weapon extends Equatable {
     muzzleFlashTextureIndex: 2,
   );
 
-  /// Fires a physical projectile that bounces off walls up to 3 times.
+  /// Fires a physical projectile that bounces off walls up to 4 times.
   static const bouncePistol = Weapon(
     id: 'bounce_pistol',
     name: 'Bounce Pistol',
     damage: 25,
     maxAmmo: 12,
     fireRate: 1.5,
-    range: 40.0,
+    range: 50.0,
     ammoType: AmmoType.bouncing,
     isHitscan: false,
-    projectileSpeed: 12.0,
-    maxBounces: 3,
+    projectileSpeed: 20.0,
+    maxBounces: 4,
     muzzleFlashTextureIndex: 3,
   );
 
-  /// Rapid-fire bouncing rifle. Bullets ricochet 5 times.
+  /// Rapid-fire bouncing rifle. Bullets ricochet 6 times.
   static const bounceRifle = Weapon(
     id: 'bounce_rifle',
     name: 'Bounce Rifle',
     damage: 15,
     maxAmmo: 25,
     fireRate: 3.0,
-    range: 50.0,
+    range: 70.0,
     ammoType: AmmoType.bouncing,
     isHitscan: false,
-    projectileSpeed: 16.0,
-    maxBounces: 5,
+    projectileSpeed: 25.0,
+    maxBounces: 6,
     muzzleFlashTextureIndex: 4,
   );
 }
