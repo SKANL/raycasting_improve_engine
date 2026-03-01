@@ -28,13 +28,6 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     GameStarted event,
     Emitter<GameState> emit,
   ) {
-    emit(state.copyWith(status: GameStatus.loading));
-
-    // Delegate world initialization to WorldBloc
-    worldBloc.add(const WorldInitialized(width: 32, height: 32));
-
-    // For now, assume success immediately for UI
-    // In real app, we would listen to worldBloc.stream to switch to playing
     emit(state.copyWith(status: GameStatus.playing));
   }
 

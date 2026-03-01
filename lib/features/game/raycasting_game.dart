@@ -64,8 +64,7 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     await ShaderManager.load();
     await super.onLoad();
 
-    // Initialize World
-    worldBloc.add(const WorldInitialized(width: 32, height: 32));
+    // World is already initialized by the LoadingScreen before this mounts.
 
     final renderer = RaycastRenderer();
     _renderer = renderer;
@@ -112,10 +111,12 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
             levelBloc.add(const EnemyKilledRegistered());
           } else if (effect is BounceEffect) {
             _renderer?.spawnBounceEffect(
-                v64.Vector2(effect.position.x, effect.position.y));
+              v64.Vector2(effect.position.x, effect.position.y),
+            );
           } else if (effect is WallHitEffect) {
             _renderer?.spawnWallDecal(
-                v64.Vector2(effect.position.x, effect.position.y));
+              v64.Vector2(effect.position.x, effect.position.y),
+            );
           } else if (effect is AmmoPickedUpEffect) {
             weaponBloc.add(
               AmmoAdded(ammoType: effect.ammoType, amount: effect.quantity),
@@ -149,9 +150,13 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     // ── Left joystick — Y = move forward/back, X = camera turn ───────────
     _joystick = JoystickComponent(
       knob: CircleComponent(
-          radius: 28, paint: Paint()..color = const Color(0xAAFFFFFF)),
+        radius: 28,
+        paint: Paint()..color = const Color(0xAAFFFFFF),
+      ),
       background: CircleComponent(
-          radius: 62, paint: Paint()..color = const Color(0x44FFFFFF)),
+        radius: 62,
+        paint: Paint()..color = const Color(0x44FFFFFF),
+      ),
       margin: const EdgeInsets.only(left: 48, bottom: 48),
       priority: 10,
     );
@@ -196,10 +201,17 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
       margin: const EdgeInsets.only(right: 196, bottom: 124),
       priority: 10,
       onPressed: () {
-        const all = [Weapon.pistol, Weapon.shotgun, Weapon.rifle,
-                     Weapon.bouncePistol, Weapon.bounceRifle];
+        const all = [
+          Weapon.pistol,
+          Weapon.shotgun,
+          Weapon.rifle,
+          Weapon.bouncePistol,
+          Weapon.bounceRifle,
+        ];
         final cur = weaponBloc.state.currentWeapon;
-        weaponBloc.add(WeaponSwitched(all[(all.indexOf(cur) + 1) % all.length]));
+        weaponBloc.add(
+          WeaponSwitched(all[(all.indexOf(cur) + 1) % all.length]),
+        );
       },
       onReleased: () {},
     );

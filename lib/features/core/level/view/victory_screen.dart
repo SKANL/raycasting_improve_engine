@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
-import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
-import 'package:raycasting_game/features/game/bloc/bloc.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:raycasting_game/features/core/level/view/menu_transition_screen.dart';
 
 /// Full-screen victory screen displayed after surviving 2 minutes.
 class VictoryScreen extends StatefulWidget {
@@ -40,19 +37,12 @@ class _VictoryScreenState extends State<VictoryScreen>
   }
 
   void _onRetry(BuildContext ctx) {
-    final levelBloc = ctx.read<LevelBloc>();
-    final worldBloc = ctx.read<WorldBloc>();
-    final gameBloc = ctx.read<GameBloc>();
-
-    // Cleanup old textures
-    worldBloc.add(const LevelCleanup());
-    // Reset health
-    gameBloc.add(const HealthRestored(100));
-    // Reset survival timer and kills
-    levelBloc.add(const SurvivalRestarted());
-    // Generate fresh arena with a new seed
-    final seed = levelBloc.state.sessionSeed;
-    worldBloc.add(WorldInitialized(width: 32, height: 32, seed: seed));
+    // Return completely to menu wiping stack
+    Navigator.of(ctx).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => const MenuTransitionScreen(),
+      ),
+    );
   }
 
   @override
@@ -191,7 +181,7 @@ class _RetryButtonState extends State<_RetryButton> {
                   : const Color(0x0AFFD700),
             ),
             child: Text(
-              'REINTENTAR',
+              'VOLVER AL MENÚ',
               style: GoogleFonts.outfit(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,

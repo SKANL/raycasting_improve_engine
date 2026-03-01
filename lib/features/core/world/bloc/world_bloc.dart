@@ -71,10 +71,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   final AISystem _aiSystem = AISystem();
   final AnimationSystem _animationSystem = AnimationSystem();
 
+  bool _isInitializing = false;
+
   Future<void> _onInitialized(
     WorldInitialized event,
     Emitter<WorldState> emit,
   ) async {
+    if (_isInitializing) {
+      // Prevent concurrent initialization loops if the UI spams the event
+      return;
+    }
+    _isInitializing = true;
+
     // [FIX-B3] Clear any previous entities/projectiles before re-initializing
     // to prevent accumulation on hot-reload or repeated WorldInitialized events.
     emit(
@@ -186,6 +194,8 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         playerDirection: 0,
       ),
     );
+
+    _isInitializing = false;
   }
 
   void _onEntityDamaged(EntityDamaged event, Emitter<WorldState> emit) {
@@ -525,9 +535,10 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
     // 2. AI Update — ONLY update alive enemies to save CPU on dead ones
     final liveEntities = state.entities
-        .where(
-          (e) => e.getComponent<AIComponent>()?.currentState != AIState.die,
-        )
+        .where((e) {
+          final ai = e.getComponent<AIComponent>();
+          return ai != null && ai.currentState != AIState.die;
+        })
         .toList(growable: false);
 
     // OPT: AI time-slicing — run full FSM + LOS at 20 Hz.
@@ -765,11 +776,10 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // Spawn new enemy if timer elapsed and alive count < 10
     if (_spawnTimer >= _spawnInterval && !isPlayerDead) {
       _spawnTimer = 0.0;
-      final aliveCount = updatedEntities
-          .where(
-            (e) => e.getComponent<AIComponent>()?.currentState != AIState.die,
-          )
-          .length;
+      final aliveCount = updatedEntities.where((e) {
+        final ai = e.getComponent<AIComponent>();
+        return ai != null && ai.currentState != AIState.die;
+      }).length;
 
       if (aliveCount < _maxAliveEnemies && state.map != null) {
         final newEnemy = _createSurvivalEnemy(state.map!, newPlayerPosition);
@@ -856,17 +866,21 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     }
     return enemies;
   }
+
   List<GameEntity> _spawnInitialPickups(GameMap map, Vector2 playerPos) {
     const minDist = 3.0;
     final rng = math.Random(map.width * 31 + map.height);
     final pickups = <GameEntity>[];
 
-    final availableRooms = map.roomRects
-        .where(
-          (r) => Vector2(r.centerX, r.centerY).distanceTo(playerPos) >= minDist,
-        )
-        .toList()
-      ..shuffle(rng);
+    final availableRooms =
+        map.roomRects
+            .where(
+              (r) =>
+                  Vector2(r.centerX, r.centerY).distanceTo(playerPos) >=
+                  minDist,
+            )
+            .toList()
+          ..shuffle(rng);
 
     // Config: [(ammoType, quantity)] — up to 5 pickups spread in rooms.
     const pickupDefs = [
@@ -976,25 +990,37 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // Atlas Y offset per type
     final double yo;
     switch (type) {
-      case EnemyType.grunt:    yo = 0;
-      case EnemyType.shooter:  yo = 128;
-      case EnemyType.guardian: yo = 256;
+      case EnemyType.grunt:
+        yo = 0;
+      case EnemyType.shooter:
+        yo = 128;
+      case EnemyType.guardian:
+        yo = 256;
     }
 
     final animations = {
       'idle': AnimationState(
         name: 'idle',
-        frames: [ui.Rect.fromLTWH(0, yo, 32, 32), ui.Rect.fromLTWH(32, yo, 32, 32)],
+        frames: [
+          ui.Rect.fromLTWH(0, yo, 32, 32),
+          ui.Rect.fromLTWH(32, yo, 32, 32),
+        ],
         frameDuration: 0.5,
       ),
       'walk': AnimationState(
         name: 'walk',
-        frames: [ui.Rect.fromLTWH(0, yo + 32, 32, 32), ui.Rect.fromLTWH(32, yo + 32, 32, 32)],
+        frames: [
+          ui.Rect.fromLTWH(0, yo + 32, 32, 32),
+          ui.Rect.fromLTWH(32, yo + 32, 32, 32),
+        ],
         frameDuration: 0.25,
       ),
       'attack': AnimationState(
         name: 'attack',
-        frames: [ui.Rect.fromLTWH(0, yo + 64, 32, 32), ui.Rect.fromLTWH(32, yo + 64, 32, 32)],
+        frames: [
+          ui.Rect.fromLTWH(0, yo + 64, 32, 32),
+          ui.Rect.fromLTWH(32, yo + 64, 32, 32),
+        ],
         frameDuration: 0.1,
         loop: true,
       ),
@@ -1005,7 +1031,10 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       ),
       'die': AnimationState(
         name: 'die',
-        frames: [ui.Rect.fromLTWH(0, yo + 96, 32, 32), ui.Rect.fromLTWH(32, yo + 96, 32, 32)],
+        frames: [
+          ui.Rect.fromLTWH(0, yo + 96, 32, 32),
+          ui.Rect.fromLTWH(32, yo + 96, 32, 32),
+        ],
         frameDuration: 0.2,
         loop: false,
       ),
@@ -1141,7 +1170,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
           transform == null ||
           // Only moving states benefit from velocity interpolation
           (ai.currentState != AIState.chase &&
-           ai.currentState != AIState.investigate) ||
+              ai.currentState != AIState.investigate) ||
           ai.cachedMoveVelocity == null) {
         continue;
       }
@@ -1214,4 +1243,5 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     }).toList();
 
     return changed ? result : entities;
-  }}
+  }
+}

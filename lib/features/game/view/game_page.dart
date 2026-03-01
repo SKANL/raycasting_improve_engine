@@ -11,6 +11,7 @@ import 'package:raycasting_game/features/game/bloc/game_event.dart';
 import 'package:raycasting_game/features/game/raycasting_game.dart';
 import 'package:raycasting_game/features/game/view/widgets/game_hud.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
+import 'package:raycasting_game/features/core/level/view/loading_screen.dart';
 
 class GamePage extends StatelessWidget {
   const GamePage({super.key});
@@ -26,13 +27,40 @@ class GamePage extends StatelessWidget {
         BlocProvider(
           create: (context) => GameBloc(
             worldBloc: context.read<WorldBloc>(),
-          )..add(const GameStarted()),
+          ), // GameStarted is dispatched inside GameView once World is loaded
         ),
         BlocProvider(
-          create: (_) => LevelBloc()..add(const LevelStarted()),
+          create: (_) => LevelBloc(),
         ),
       ],
-      child: const GameView(),
+      child: const GameOrchestrator(),
+    );
+  }
+}
+
+class GameOrchestrator extends StatelessWidget {
+  const GameOrchestrator({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<WorldBloc, WorldState>(
+      buildWhen: (prev, curr) {
+        // Only rebuild GameOrchestrator when switching between Loading and Playing
+        final wasLoading =
+            prev.status == WorldStatus.loading ||
+            prev.status == WorldStatus.initial;
+        final isLoading =
+            curr.status == WorldStatus.loading ||
+            curr.status == WorldStatus.initial;
+        return wasLoading != isLoading;
+      },
+      builder: (context, worldState) {
+        if (worldState.status == WorldStatus.loading ||
+            worldState.status == WorldStatus.initial) {
+          return const LoadingScreen();
+        }
+        return const GameView();
+      },
     );
   }
 }
@@ -58,6 +86,9 @@ class _GameViewState extends State<GameView> {
       weaponBloc: context.read<WeaponBloc>(),
       levelBloc: context.read<LevelBloc>(),
     );
+    // Let the GameBloc know the Engine is starting
+    context.read<GameBloc>().add(const GameStarted());
+    context.read<LevelBloc>().add(const LevelStarted());
   }
 
   @override
