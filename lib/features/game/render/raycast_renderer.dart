@@ -65,9 +65,11 @@ class RaycastRenderer extends PositionComponent
         _bounceFlashes.clear();
         _wallDecals.clear();
         _muzzleFlashTimer = 0.0;
-        // Also invalidate weapon picture so it's re-baked with the new screen size.
-        _cachedWeaponPicture?.dispose();
-        _cachedWeaponPicture = null;
+        // Also invalidate weapon pictures so they're re-baked with the new screen size.
+        _cachedWeaponCarryPicture?.dispose();
+        _cachedWeaponCarryPicture = null;
+        _cachedWeaponAimPicture?.dispose();
+        _cachedWeaponAimPicture = null;
         _cachedWeaponId = '';
         _equipT = 0.0; // play equip animation on next game start
         _aimT        = 0.0;
@@ -112,12 +114,16 @@ class RaycastRenderer extends PositionComponent
   final List<({v64.Vector2 pos, double timer})> _wallDecals = [];
   static const double _wallDecalDuration = 8.0;
 
-  // Weapon viewmodel picture cache: baked once per weapon change, replayed
-  // each frame with a cheap canvas.translate(0, bob) — avoids 40+ draw calls/frame.
-  Picture? _cachedWeaponPicture;
-  String   _cachedWeaponId   = '';
-  double   _cachedWeaponW    = 0;
-  double   _cachedWeaponH    = 0;
+  // ── Weapon viewmodel picture cache ──────────────────────────────────────
+  // Two pictures are baked once per weapon-change or resize:
+  //   _carry : side-view model pre-rotated to diagonal carry angle (image-2 look)
+  //   _aim   : front-facing model at center-bottom          (image-3 look)
+  // _drawWeapon crossfades between them using tAim as the blend factor.
+  Picture? _cachedWeaponCarryPicture;
+  Picture? _cachedWeaponAimPicture;
+  String   _cachedWeaponId = '';
+  double   _cachedWeaponW  = 0;
+  double   _cachedWeaponH  = 0;
 
   // Equip animation: 0.0 = weapon lateral/holstered → 1.0 = in firing position.
   // Driven by the Flame game loop (update dt), no AnimationController needed.
@@ -558,470 +564,855 @@ class RaycastRenderer extends PositionComponent
   }
 
   // ── Weapon Viewmodel ─────────────────────────────────────────────────────
-  // The weapon geometry is expensive (~40 draw calls). We bake it into a
-  // ui.Picture once per weapon-change (or screen-size change), then replay it
-  // each frame with only a cheap canvas.translate for the breathing bob.
+  // Two Pictures are baked once per weapon-change or resize — never per-frame.
+  //   • carry picture : side-view model, pre-rotated to diagonal carry angle.
+  //                     Equip slide and breathing bob are applied each frame.
+  //   • aim   picture : front-facing model, drawn from behind the weapon.
+  //                     Stable position: no per-frame rotation needed.
+  // _drawWeapon crossfades using tAim:  0 = carry,  1 = ADS.
   void _drawWeapon(Canvas canvas, v64.Vector2 screenSize) {
     final weapon = game.weaponBloc.state.currentWeapon;
     final w = screenSize.x;
     final h = screenSize.y;
 
-    // Invalidate cache when weapon changes or viewport is resized.
+    // ── Bake pictures on weapon change / resize ───────────────────────────
     if (_cachedWeaponId != weapon.id ||
         _cachedWeaponW  != w ||
         _cachedWeaponH  != h) {
-      // Dispose old GPU resource before replacing.
-      _cachedWeaponPicture?.dispose();
+      _cachedWeaponCarryPicture?.dispose();
+      _cachedWeaponAimPicture?.dispose();
       _cachedWeaponId = weapon.id;
       _cachedWeaponW  = w;
       _cachedWeaponH  = h;
-      final recorder = PictureRecorder();
-      final c = Canvas(recorder);
-      // Bake at rest position; all animation applied as canvas transforms.
-      _bakeWeapon(c, weapon.id, w, h);
-      _cachedWeaponPicture = recorder.endRecording();
-      // Trigger equip animation on every weapon switch.
-      _equipT = 0.0;
-    }
 
-    // ── Equip + Carry/Aim combined transform ────────────────────────────────
-    // Curve both progress values with easeOutCubic.
-    final tE    = 1.0 - math.pow(1.0 - _equipT,  3.0) as double; // equip
-    final tAim  = 1.0 - math.pow(1.0 - _aimT,    3.0) as double; // carry↔aim
-
-    // --- Angle ---
-    // kAngleStart : -90° weapon enters laterally from the right side
-    // kAngleCarry : +22° low-ready carry — barrel pointing slightly down (image 2)
-    // kAngleAim   :  -5° aimed          — barrel on the crosshair           (image 3)
-    const kAngleStart = -math.pi * 0.5;      // −90°
-    const kAngleCarry =  math.pi * 0.122;    // +22° (barrel down, low-ready)
-    const kAngleAim   = -math.pi * 0.028;    //  −5° (barrel at crosshair)
-
-    // Carry ↔ aim interpolation.
-    final kAngleFinal = kAngleCarry + (kAngleAim - kAngleCarry) * tAim;
-    // Equip: start lateral → final settled angle.
-    final angle = kAngleStart + (kAngleFinal - kAngleStart) * tE;
-
-    // --- Vertical offset ---
-    // Equip raise: weapon rises from below the screen into position.
-    final equipPush = h * 0.32 * (1.0 - tE);
-    // Carry lower: weapon drops h*0.10 in low-ready; rises to 0 when aiming.
-    final carryPush = h * 0.10 * (1.0 - tAim) * tE; // only after equip settles
-    // Breathing bob: fades in once equip completes, suppressed while aiming.
-    final bobAmp    = 3.5 * math.min(1.0, _equipT * 4.0) * (1.0 - tAim * 0.6);
-    final bob       = math.sin(_time * 2.5) * bobAmp;
-
-    final push = equipPush + carryPush + bob;
-
-    // Pivot at the weapon grip — consistent across pistol / shotgun / rifle.
-    const pivotFx = 0.72;
-    const pivotFy = 0.82;
-    final pivotX  = w * pivotFx;
-    final pivotY  = h * pivotFy;
-
-    // Apply transform: rotate around grip pivot + push.
-    canvas.save();
-    canvas.translate(pivotX, pivotY + push);
-    canvas.rotate(angle);
-    canvas.translate(-pivotX, -pivotY);
-    canvas.drawPicture(_cachedWeaponPicture!);
-    canvas.restore();
-  }
-
-  /// Dispatches to the correct per-weapon draw method.
-  /// Called only when the cache is invalidated — NOT every frame.
-  void _bakeWeapon(Canvas canvas, String id, double w, double h) {
-    switch (id) {
-      case 'pistol':       _vmPistol(canvas, w, h, bounce: false);
-      case 'bounce_pistol':_vmPistol(canvas, w, h, bounce: true);
-      case 'shotgun':      _vmShotgun(canvas, w, h);
-      case 'rifle':        _vmRifle(canvas, w, h, bounce: false);
-      case 'bounce_rifle': _vmRifle(canvas, w, h, bounce: true);
-    }
-  }
-
-  /// Pistol / Bounce-Pistol viewmodel (right-hand, barrel pointing upper-left).
-  // ignore: long-method
-  void _vmPistol(Canvas canvas, double w, double h, {required bool bounce}) {
-    Paint f(Color c) => Paint()..color = c;
-    Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
-      ..shader = Gradient.linear(r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
-
-    final Color bodyDark = bounce ? const Color(0xFF0A1E1A) : const Color(0xFF181818);
-    final Color bodyMid  = bounce ? const Color(0xFF1A4A3A) : const Color(0xFF3C3C3C);
-    final Color bodyLite = bounce ? const Color(0xFF2A6A55) : const Color(0xFF666666);
-    const glowGreen = Color(0xFF00FF88);
-    const glowBlue  = Color(0xFF00AAFF);
-    final glowC = bounce ? glowGreen : glowBlue;
-
-    // 1. Barrel ──────────────────────────────────────────────────────────────
-    final barR = Rect.fromLTWH(w * 0.20, h * 0.632, w * 0.382, h * 0.030);
-    canvas.drawRect(barR, mgv(barR, const Color(0xFF1C1C1C), const Color(0xFF545454), const Color(0xFF2A2A2A)));
-    // top-edge highlight
-    canvas.drawRect(Rect.fromLTWH(w * 0.20, h * 0.632, w * 0.382, h * 0.004), f(const Color(0x55FFFFFF)));
-    // energy coil rings on bounce barrel
-    if (bounce) {
-      for (var i = 0; i < 3; i++) {
-        final cx = w * 0.27 + i * w * 0.098;
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(cx, h * 0.647), width: w * 0.026, height: h * 0.030),
-          f(glowGreen)..style = PaintingStyle.stroke..strokeWidth = 1.8..blendMode = BlendMode.plus,
-        );
+      // CARRY — vertical model pre-rotated −44° around grip pivot so that
+      // the barrel points from lower-right toward upper-left (image-2 look).
+      // Pivot chosen so the rotated gun sits in the lower-right quadrant.
+      {
+        final rec = PictureRecorder();
+        final c   = Canvas(rec);
+        final pivX = w * 0.76;
+        final pivY = h * 0.92;
+        c.translate(pivX, pivY);
+        c.rotate(-math.pi * 0.244); // −44°
+        c.translate(-pivX, -pivY);
+        _bakeWeaponCarry(c, weapon.id, w, h);
+        _cachedWeaponCarryPicture = rec.endRecording();
       }
-    }
-    // Muzzle cap
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.186, h * 0.630, w * 0.016, h * 0.034), f(const Color(0xFF111111)));
-    canvas.drawCircle(Offset(w * 0.194, h * 0.647), h * 0.008, f(const Color(0xFF050505)));
-    // Front sight post (above barrel tip)
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.228, h * 0.617, w * 0.009, h * 0.015), f(const Color(0xFFDDDDDD)));
 
-    // 2. Slide / Receiver ──────────────────────────────────────────────────
-    final slideR = Rect.fromLTWH(w * 0.500, h * 0.601, w * 0.226, h * 0.104);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(slideR, const Radius.circular(3)),
-      mgv(slideR, bodyDark, bodyMid, bodyLite),
-    );
-    // Ejection port
+      // AIM — front-facing model: barrel pointing toward viewer, wide body.
+      {
+        final rec = PictureRecorder();
+        final c   = Canvas(rec);
+        _bakeWeaponAim(c, weapon.id, w, h);
+        _cachedWeaponAimPicture = rec.endRecording();
+      }
+
+      _equipT = 0.0; // trigger equip animation on every weapon switch
+    }
+
+    final tE   = 1.0 - math.pow(1.0 - _equipT, 3.0) as double;
+    final tAim = 1.0 - math.pow(1.0 - _aimT,   3.0) as double;
+
+    // Equip: slide carry picture in from the right edge.
+    final equipSlideX = w * 0.38 * (1.0 - tE);
+
+    // Breathing bob on carry picture — fades out while aiming.
+    final bobAmp = 2.0 * math.min(1.0, _equipT * 4.0) * (1.0 - tAim * 0.85);
+    final bob    = math.sin(_time * 2.5) * bobAmp;
+
+    // Scale constants: keep the gun small and in the lower corners.
+    // 0.40 comes from: barrel in model space = 0.43h; after scale it becomes
+    // 0.17h tall on screen → correctly fills the bottom ~30% of the viewport.
+    const carryScale   = 0.40;
+    // Rotated grip sits approximately at (0.76w, 0.92h) after baking.
+    const carryAnchorX = 0.76;
+    const carryAnchorY = 0.92;
+    const aimScale     = 0.40;
+    // Scaling ADS from y=1.0h pulls the model up while keeping the grip
+    // pinned just below the screen edge.
+    const aimAnchorX   = 0.50;
+    const aimAnchorY   = 1.00;
+
+    // ── Draw CARRY picture — fades OUT as tAim → 1 ───────────────────────
+    if (tAim < 1.0) {
+      final alpha = ((1.0 - tAim) * 255).round().clamp(0, 255);
+      canvas.save();
+      canvas.saveLayer(
+          null, Paint()..color = Color.fromARGB(alpha, 255, 255, 255));
+      // Scale around grip anchor first, then apply equip slide + bob.
+      canvas.translate(w * carryAnchorX + equipSlideX, h * carryAnchorY + bob);
+      canvas.scale(carryScale);
+      canvas.translate(-w * carryAnchorX, -h * carryAnchorY);
+      canvas.drawPicture(_cachedWeaponCarryPicture!);
+      canvas.restore(); // end saveLayer
+      canvas.restore();
+    }
+
+    // ── Draw ADS picture — fades IN as tAim → 1 ──────────────────────────
+    if (tAim > 0.0) {
+      final alpha = (tAim * 255).round().clamp(0, 255);
+      canvas.save();
+      canvas.saveLayer(
+          null, Paint()..color = Color.fromARGB(alpha, 255, 255, 255));
+      canvas.translate(w * aimAnchorX, h * aimAnchorY);
+      canvas.scale(aimScale);
+      canvas.translate(-w * aimAnchorX, -h * aimAnchorY);
+      canvas.drawPicture(_cachedWeaponAimPicture!);
+      canvas.restore(); // end saveLayer
+      canvas.restore();
+    }
+  }
+
+  /// Dispatch for the CARRY (side-view) model.
+  void _bakeWeaponCarry(Canvas canvas, String id, double w, double h) {
+    switch (id) {
+      case 'pistol':       _vmPistolCarry(canvas, w, h, bounce: false);
+      case 'bounce_pistol':_vmPistolCarry(canvas, w, h, bounce: true);
+      case 'shotgun':      _vmShotgunCarry(canvas, w, h);
+      case 'rifle':        _vmRifleCarry(canvas, w, h, bounce: false);
+      case 'bounce_rifle': _vmRifleCarry(canvas, w, h, bounce: true);
+    }
+  }
+
+  /// Dispatch for the ADS (front-facing) model.
+  void _bakeWeaponAim(Canvas canvas, String id, double w, double h) {
+    switch (id) {
+      case 'pistol':       _vmPistolAim(canvas, w, h, bounce: false);
+      case 'bounce_pistol':_vmPistolAim(canvas, w, h, bounce: true);
+      case 'shotgun':      _vmShotgunAim(canvas, w, h);
+      case 'rifle':        _vmRifleAim(canvas, w, h, bounce: false);
+      case 'bounce_rifle': _vmRifleAim(canvas, w, h, bounce: true);
+    }
+  }
+
+  // ── CARRY (side-view) models ───────────────────────────────────────────
+  // Drawn VERTICAL (barrel up, grip down). The baking step pre-rotates −44°
+  // around the grip pivot so the result appears diagonal lower-right in game.
+  // Design rules:
+  //   • Barrel: very thin (w*0.018), long, dark gunmetal
+  //   • Parts have hard colour breaks so silhouette reads as "gun" at a glance
+  //   • Bounce accent = one subtle edge highlight, NO rings in carry mode
+
+  // ignore: long-method
+  void _vmPistolCarry(Canvas canvas, double w, double h,
+      {required bool bounce}) {
+    Paint f(Color c) => Paint()..color = c;
+    Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.45, 1.0]);
+    Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
+
+    // Colour palette — bounce gets a very subtle dark-teal tint, not neon
+    final Color bdark = bounce ? const Color(0xFF0D1C19) : const Color(0xFF141414);
+    final Color bmid  = bounce ? const Color(0xFF1C3530) : const Color(0xFF323232);
+    final Color blite = bounce ? const Color(0xFF2A4A44) : const Color(0xFF585858);
+    final Color accent= bounce ? const Color(0xFF1DFFB4) : const Color(0xFF888888);
+
+    // ── 1. Barrel — thin, long, dark steel ──────────────────────────────
+    final bx = w * 0.491;
+    final barR = Rect.fromLTWH(bx, h * 0.105, w * 0.018, h * 0.438);
+    canvas.drawRect(barR,
+        mgh(barR, const Color(0xFF0E0E0E), const Color(0xFF424242), const Color(0xFF161616)));
+    // Bright left-edge specular line
+    canvas.drawLine(Offset(bx, h * 0.105), Offset(bx, h * 0.543),
+        f(const Color(0x55FFFFFF))..strokeWidth = 1.5);
+    // Muzzle crown — tiny dark ring at bore
+    canvas.drawCircle(Offset(w * 0.500, h * 0.118), h * 0.009,
+        f(const Color(0xFF030303)));
+    // Tiny front-sight blade
+    canvas.drawRect(Rect.fromLTWH(w * 0.495, h * 0.094, w * 0.010, h * 0.016),
+        f(const Color(0xFFCCCCCC)));
+    // Bounce edge glow — single faint line only
+    if (bounce) {
+      canvas.drawLine(Offset(bx + w * 0.018, h * 0.105),
+          Offset(bx + w * 0.018, h * 0.543),
+          f(accent)..strokeWidth = 1.2..blendMode = BlendMode.plus);
+    }
+
+    // ── 2. Slide (rectangular, clearly wider than barrel) ───────────────
+    final slideR = Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.080, h * 0.148);
+    canvas.drawRRect(RRect.fromRectAndRadius(slideR, const Radius.circular(3)),
+        mgh(slideR, bdark, bmid, blite));
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.604, h * 0.632, w * 0.066, h * 0.038), f(const Color(0xFF080808)));
-    // Rear serrations
-    for (var i = 0; i < 6; i++) {
+        Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.080, h * 0.008),
+        f(const Color(0x55FFFFFF)));
+    // Ejection port cut-out
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.508, h * 0.540, w * 0.032, h * 0.072),
+        f(const Color(0xFF060606)));
+    // Rear serrations (3 lines on back of slide)
+    for (var i = 0; i < 3; i++) {
       canvas.drawLine(
-        Offset(w * 0.694 + i * w * 0.008, h * 0.606),
-        Offset(w * 0.694 + i * w * 0.008, h * 0.694),
-        f(const Color(0xFF222222))..strokeWidth = w * 0.003,
+        Offset(w * 0.463, h * 0.544 + i * h * 0.022),
+        Offset(w * 0.472, h * 0.544 + i * h * 0.022),
+        f(const Color(0xFF0A0A0A))..strokeWidth = h * 0.008,
       );
     }
-    // Rear sight notch
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.708, h * 0.600, w * 0.026, h * 0.010), f(const Color(0xFF888888)));
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.718, h * 0.600, w * 0.010, h * 0.008), f(const Color(0xFF111111)));
-    // Bounce glow panel on slide
+    // Rear sight — two white dots flanking a notch
+    canvas.drawRect(Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.012, h * 0.014),
+        f(const Color(0xFF888888)));
+    canvas.drawCircle(Offset(w * 0.464, h * 0.536), h * 0.003,
+        f(const Color(0xFFFFFFFF)));
+    canvas.drawCircle(Offset(w * 0.536, h * 0.536), h * 0.003,
+        f(const Color(0xFFFFFFFF)));
     if (bounce) {
-      canvas.drawRect(
-        Rect.fromLTWH(w * 0.510, h * 0.612, w * 0.200, h * 0.014),
-        f(const Color(0x5500FF88))..blendMode = BlendMode.plus,
-      );
-    }
-    // Slide top highlight
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.500, h * 0.601, w * 0.226, h * 0.008), f(const Color(0x33FFFFFF)));
-    // Bounce: trigger color tint
-    if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.502, h * 0.613, w * 0.018, h * 0.010),
-          f(glowC)..blendMode = BlendMode.plus);
+      canvas.drawRect(Rect.fromLTWH(w * 0.461, h * 0.534, w * 0.078, h * 0.008),
+          f(accent)..blendMode = BlendMode.plus
+            ..color = accent.withAlpha(60));
     }
 
-    // 3. Grip ────────────────────────────────────────────────────────────────
-    canvas.drawRRect(
-      RRect.fromLTRBAndCorners(
-        w * 0.596, h * 0.705, w * 0.696, h * 1.02,
-        bottomLeft: const Radius.circular(6),
-        bottomRight: const Radius.circular(6),
-      ),
-      f(bounce ? const Color(0xFF101A18) : const Color(0xFF141414)),
+    // ── 3. Dust cover / frame (below slide) ─────────────────────────────
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.468, h * 0.668, w * 0.064, h * 0.064),
+        f(bdark));
+
+    // ── 4. Trigger guard (open arc) ──────────────────────────────────────
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.472, h * 0.712, w * 0.056, h * 0.052),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF0E0E0E))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.005,
     );
+    // Trigger blade
+    canvas.drawLine(Offset(w * 0.500, h * 0.720), Offset(w * 0.497, h * 0.752),
+        f(const Color(0xFF4A4A4A))..strokeWidth = w * 0.004);
+
+    // ── 5. Grip (angled, extends off-screen) ─────────────────────────────
+    // Path gives the grip an angled rear like a real pistol
+    final gripPath = Path()
+      ..moveTo(w * 0.465, h * 0.732)
+      ..lineTo(w * 0.529, h * 0.732)
+      ..lineTo(w * 0.538, h * 1.040)
+      ..lineTo(w * 0.465, h * 1.040)
+      ..close();
+    canvas.drawPath(gripPath, f(bdark));
     // Stippling
-    for (var gy = 0; gy < 5; gy++) {
+    for (var gy = 0; gy < 3; gy++) {
       for (var gx = 0; gx < 3; gx++) {
         canvas.drawCircle(
-          Offset(w * 0.614 + gx * w * 0.024, h * 0.730 + gy * h * 0.038),
-          h * 0.004,
-          f(const Color(0xFF272727)),
-        );
+          Offset(w * 0.474 + gx * w * 0.016, h * 0.754 + gy * h * 0.040),
+          h * 0.0035, f(const Color(0xFF2A2A2A)));
+      }
+    }
+    // Left-edge bevel
+    canvas.drawLine(Offset(w * 0.465, h * 0.732), Offset(w * 0.465, h * 1.040),
+        f(bmid)..strokeWidth = 2.0);
+    // Bounce mag-base accent band
+    if (bounce) {
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.466, h * 0.792, w * 0.072, h * 0.012),
+          f(accent)..color = accent.withAlpha(80));
+    }
+  }
+
+  // ignore: long-method
+  void _vmShotgunCarry(Canvas canvas, double w, double h) {
+    Paint f(Color c) => Paint()..color = c;
+    Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.5, 1.0]);
+    Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.5, 1.0]);
+
+    // ── 1. Two thin barrels (side-by-side) ───────────────────────────────
+    // Tight spacing — they read as a pair, not two separate wide tubes
+    final barXs = [w * 0.488, w * 0.504];
+    for (final bx in barXs) {
+      final bR = Rect.fromLTWH(bx, h * 0.095, w * 0.012, h * 0.440);
+      canvas.drawRect(bR,
+          mgh(bR, const Color(0xFF121212), const Color(0xFF4A4A4A), const Color(0xFF1A1A1A)));
+      canvas.drawLine(Offset(bx, h * 0.095), Offset(bx, h * 0.535),
+          f(const Color(0x44FFFFFF))..strokeWidth = 1.0);
+    }
+    // Raised rib between barrels
+    canvas.drawRect(Rect.fromLTWH(w * 0.500, h * 0.100, w * 0.004, h * 0.430),
+        f(const Color(0xFF999999)));
+    // Muzzle crowns
+    for (final bx in barXs) {
+      canvas.drawOval(Rect.fromLTWH(bx, h * 0.093, w * 0.012, h * 0.014),
+          f(const Color(0xFF3A3A3A))
+            ..style = PaintingStyle.stroke ..strokeWidth = 1.2);
+    }
+
+    // ── 2. Barrel band (metal ring) ───────────────────────────────────────
+    final bandR = Rect.fromLTWH(w * 0.482, h * 0.360, w * 0.036, h * 0.020);
+    canvas.drawRect(bandR,
+        mgh(bandR, const Color(0xFF2E2E2E), const Color(0xFF888888), const Color(0xFF3A3A3A)));
+
+    // ── 3. Fore-end / pump (wood grain) ──────────────────────────────────
+    final pumpR = Rect.fromLTWH(w * 0.468, h * 0.470, w * 0.064, h * 0.070);
+    canvas.drawRRect(RRect.fromRectAndRadius(pumpR, const Radius.circular(4)),
+        mgh(pumpR, const Color(0xFF2E1204), const Color(0xFF7A4015), const Color(0xFF2E1204)));
+    // Wood grain lines
+    for (var i = 0; i < 4; i++) {
+      canvas.drawLine(
+        Offset(w * 0.471 + i * w * 0.012, h * 0.474),
+        Offset(w * 0.471 + i * w * 0.012, h * 0.536),
+        f(const Color(0xFF1E0A00))..strokeWidth = w * 0.003,
+      );
+    }
+    canvas.drawRect(Rect.fromLTWH(w * 0.468, h * 0.470, w * 0.064, h * 0.006),
+        f(const Color(0x33FFFFFF)));
+
+    // ── 4. Receiver / action ──────────────────────────────────────────────
+    final recR = Rect.fromLTWH(w * 0.454, h * 0.534, w * 0.092, h * 0.080);
+    canvas.drawRRect(RRect.fromRectAndRadius(recR, const Radius.circular(3)),
+        mgv(recR, const Color(0xFF1C1C1C), const Color(0xFF484848), const Color(0xFF282828)));
+    canvas.drawRect(Rect.fromLTWH(w * 0.454, h * 0.534, w * 0.092, h * 0.008),
+        f(const Color(0x44FFFFFF)));
+    // Safety / bolt markers
+    canvas.drawCircle(Offset(w * 0.500, h * 0.568), h * 0.006,
+        f(const Color(0xFF0A0A0A)));
+
+    // ── 5. Trigger guard ─────────────────────────────────────────────────
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.475, h * 0.596, w * 0.050, h * 0.044),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF0E0E0E))..style = PaintingStyle.stroke..strokeWidth = w * 0.004,
+    );
+    canvas.drawLine(Offset(w * 0.500, h * 0.603), Offset(w * 0.497, h * 0.630),
+        f(const Color(0xFF444444))..strokeWidth = w * 0.003);
+
+    // ── 6. Wood stock / pistol grip (extends off bottom) ─────────────────
+    final stockPath = Path()
+      ..moveTo(w * 0.454, h * 0.614)
+      ..lineTo(w * 0.546, h * 0.614)
+      ..lineTo(w * 0.552, h * 1.040)
+      ..lineTo(w * 0.448, h * 1.040)
+      ..close();
+    canvas.drawPath(stockPath,
+        Paint()..shader = Gradient.linear(
+            Offset(w * 0.454, 0), Offset(w * 0.546, 0),
+            [const Color(0xFF2C1004), const Color(0xFF6A3610), const Color(0xFF2C1004)],
+            [0.0, 0.5, 1.0]));
+    for (var i = 0; i < 3; i++) {
+      canvas.drawLine(
+        Offset(w * 0.460 + i * w * 0.024, h * 0.618),
+        Offset(w * 0.456 + i * w * 0.024, h * 1.040),
+        f(const Color(0xFF1C0800))..strokeWidth = w * 0.003,
+      );
+    }
+  }
+
+  // ignore: long-method
+  void _vmRifleCarry(Canvas canvas, double w, double h, {required bool bounce}) {
+    Paint f(Color c) => Paint()..color = c;
+    Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.45, 1.0]);
+    Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
+
+    // Gunmetal palette — bounce gets subtle dark teal, NOT neon blue
+    final Color bdark = bounce ? const Color(0xFF0A1820) : const Color(0xFF111111);
+    final Color bmid  = bounce ? const Color(0xFF152A36) : const Color(0xFF2C2C2C);
+    final Color blite = bounce ? const Color(0xFF1E3E4E) : const Color(0xFF484848);
+    final Color accent= bounce ? const Color(0xFF22D4FF) : const Color(0xFF666666);
+
+    // ── 1. Front-sight post ───────────────────────────────────────────────
+    canvas.drawRect(Rect.fromLTWH(w * 0.496, h * 0.050, w * 0.008, h * 0.028),
+        f(const Color(0xFFCCCCCC)));
+
+    // ── 2. Barrel — very thin, long ───────────────────────────────────────
+    final bx = w * 0.491;
+    final barR = Rect.fromLTWH(bx, h * 0.076, w * 0.018, h * 0.440);
+    canvas.drawRect(barR,
+        mgh(barR, const Color(0xFF0E0E0E), const Color(0xFF3E3E3E), const Color(0xFF181818)));
+    // Bright specular left-edge line
+    canvas.drawLine(Offset(bx, h * 0.076), Offset(bx, h * 0.516),
+        f(const Color(0x55FFFFFF))..strokeWidth = 1.5);
+    // Bore hole at muzzle
+    canvas.drawCircle(Offset(w * 0.500, h * 0.086), h * 0.008,
+        f(const Color(0xFF050505)));
+    // For bounce: single faint teal edge — NO rings
+    if (bounce) {
+      canvas.drawLine(
+          Offset(bx + w * 0.018, h * 0.076), Offset(bx + w * 0.018, h * 0.516),
+          f(accent)..strokeWidth = 1.2..blendMode = BlendMode.plus
+            ..color = accent.withAlpha(80));
+    }
+    // Muzzle brake (3 small tabs)
+    for (var i = 0; i < 3; i++) {
+      canvas.drawRect(
+        Rect.fromLTWH(w * 0.487 + i * w * 0.009, h * 0.054, w * 0.006, h * 0.024),
+        f(const Color(0xFF383838)),
+      );
+    }
+
+    // ── 3. Gas tube (thin strip left of barrel) ───────────────────────────
+    canvas.drawRect(Rect.fromLTWH(w * 0.511, h * 0.078, w * 0.008, h * 0.280),
+        f(const Color(0xFF1E1E1E)));
+
+    // ── 4. Handguard (clearly wider than barrel) ──────────────────────────
+    final hgR = Rect.fromLTWH(w * 0.472, h * 0.390, w * 0.056, h * 0.118);
+    canvas.drawRRect(RRect.fromRectAndRadius(hgR, const Radius.circular(3)),
+        mgh(hgR, bdark, bmid, bdark));
+    // Ventilation slots
+    for (var i = 0; i < 3; i++) {
+      canvas.drawRect(
+        Rect.fromLTWH(w * 0.476 + i * w * 0.014, h * 0.406, w * 0.008, h * 0.012),
+        f(const Color(0xFF080808)),
+      );
+    }
+    canvas.drawRect(Rect.fromLTWH(w * 0.472, h * 0.390, w * 0.056, h * 0.006),
+        f(const Color(0x33FFFFFF)));
+
+    // ── 5. Optic / scope (sits above upper receiver) ──────────────────────
+    if (!bounce) {
+      // Carry handle / iron sights rail
+      final chR = Rect.fromLTWH(w * 0.456, h * 0.498, w * 0.088, h * 0.036);
+      canvas.drawRect(chR,
+          mgh(chR, const Color(0xFF181818), const Color(0xFF303030), const Color(0xFF181818)));
+      canvas.drawRect(Rect.fromLTWH(w * 0.456, h * 0.498, w * 0.088, h * 0.005),
+          f(const Color(0x33FFFFFF)));
+      // Sight notch
+      canvas.drawRect(Rect.fromLTWH(w * 0.537, h * 0.499, w * 0.007, h * 0.012),
+          f(const Color(0xFF111111)));
+    } else {
+      // Scope tube — dark body, barely-glowing rear lens
+      final scopeR = Rect.fromLTWH(w * 0.448, h * 0.490, w * 0.104, h * 0.044);
+      canvas.drawRRect(RRect.fromRectAndRadius(scopeR, const Radius.circular(4)),
+          mgh(scopeR, const Color(0xFF080E14), const Color(0xFF122030), const Color(0xFF080E14)));
+      // Lens — very subtle, not a glowing orb
+      canvas.drawOval(Rect.fromLTWH(w * 0.452, h * 0.495, w * 0.030, h * 0.032),
+          f(const Color(0xFF0A1420)));
+      canvas.drawOval(Rect.fromLTWH(w * 0.456, h * 0.499, w * 0.022, h * 0.024),
+          f(accent)..blendMode = BlendMode.plus..color = accent.withAlpha(40));
+    }
+
+    // ── 6. Upper receiver ─────────────────────────────────────────────────
+    final urR = Rect.fromLTWH(w * 0.458, h * 0.528, w * 0.130, h * 0.096);
+    canvas.drawRect(urR, mgv(urR, bmid, blite, bmid));
+    canvas.drawRect(Rect.fromLTWH(w * 0.458, h * 0.528, w * 0.130, h * 0.006),
+        f(const Color(0x44FFFFFF)));
+    // Ejection port
+    canvas.drawRect(Rect.fromLTWH(w * 0.542, h * 0.540, w * 0.046, h * 0.054),
+        f(const Color(0xFF080808)));
+    // Charging handle nub
+    canvas.drawRect(Rect.fromLTWH(w * 0.458, h * 0.532, w * 0.014, h * 0.038),
+        f(const Color(0xFF1A1A1A)));
+    if (bounce) {
+      canvas.drawLine(Offset(w * 0.459, h * 0.530), Offset(w * 0.587, h * 0.530),
+          f(accent)..strokeWidth = 1.0..blendMode = BlendMode.plus
+            ..color = accent.withAlpha(50));
+    }
+
+    // ── 7. Lower receiver + magazine ─────────────────────────────────────
+    final lrR = Rect.fromLTWH(w * 0.464, h * 0.618, w * 0.124, h * 0.084);
+    canvas.drawRect(lrR, mgv(lrR, bdark, bmid, bdark));
+    // Magazine well
+    canvas.drawRRect(
+      RRect.fromLTRBAndCorners(w * 0.476, h * 0.660, w * 0.524, h * 0.870,
+          bottomLeft: const Radius.circular(4), bottomRight: const Radius.circular(4)),
+      mgv(Rect.fromLTWH(w * 0.476, h * 0.660, w * 0.048, h * 0.210),
+          bmid, blite, bmid),
+    );
+    canvas.drawRect(Rect.fromLTWH(w * 0.476, h * 0.660, w * 0.048, h * 0.008),
+        f(bounce ? accent.withAlpha(160) : const Color(0xFF555555)));
+    canvas.drawLine(Offset(w * 0.500, h * 0.668), Offset(w * 0.500, h * 0.870),
+        f(const Color(0xFF0C0C0C))..strokeWidth = w * 0.003);
+
+    // ── 8. Pistol grip ────────────────────────────────────────────────────
+    canvas.drawRRect(
+      RRect.fromLTRBAndCorners(w * 0.528, h * 0.628, w * 0.556, h * 0.820,
+          bottomLeft: const Radius.circular(5), bottomRight: const Radius.circular(5)),
+      f(bdark),
+    );
+    for (var gy = 0; gy < 3; gy++) {
+      canvas.drawLine(
+        Offset(w * 0.532, h * 0.648 + gy * h * 0.036),
+        Offset(w * 0.552, h * 0.648 + gy * h * 0.036),
+        f(const Color(0xFF1E1E1E))..strokeWidth = h * 0.006,
+      );
+    }
+
+    // ── 9. Trigger guard + trigger ────────────────────────────────────────
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.480, h * 0.694, w * 0.056, h * 0.048),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF0A0A0A))..style = PaintingStyle.stroke..strokeWidth = w * 0.005,
+    );
+    canvas.drawLine(Offset(w * 0.508, h * 0.700), Offset(w * 0.505, h * 0.730),
+        f(const Color(0xFF3A3A3A))..strokeWidth = w * 0.004);
+
+    // ── 10. Stock (extends LEFT — opposite from grip) ─────────────────────
+    final stR = Rect.fromLTWH(w * 0.386, h * 0.536, w * 0.082, h * 0.078);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(stR, const Radius.circular(4)),
+      mgv(stR, bdark, bmid, bdark),
+    );
+    if (bounce) {
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.387, h * 0.554, w * 0.080, h * 0.008),
+          f(accent)..color = accent.withAlpha(60));
+    }
+  }
+
+  // ── ADS (front-facing) models ──────────────────────────────────────────
+  // Drawn as if the player is looking from behind the weapon toward the
+  // target (image-3 reference). Barrel is foreshortened — short central
+  // stub. Receiver/body is wide, filling the lower-center of the screen.
+
+  // ignore: long-method
+  void _vmPistolAim(Canvas canvas, double w, double h, {required bool bounce}) {
+    Paint f(Color c) => Paint()..color = c;
+    Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
+    Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.45, 1.0]);
+
+    final Color bodyDark =
+        bounce ? const Color(0xFF0A1E1A) : const Color(0xFF181818);
+    final Color bodyMid =
+        bounce ? const Color(0xFF1A4A3A) : const Color(0xFF3C3C3C);
+    final Color bodyLite =
+        bounce ? const Color(0xFF2A6A55) : const Color(0xFF666666);
+    const Color glowGreen = Color(0xFF00FF88);
+
+    // Barrel stub (short — pointing toward viewer)
+    final barR = Rect.fromLTWH(w * 0.468, h * 0.310, w * 0.064, h * 0.260);
+    canvas.drawRRect(RRect.fromRectAndRadius(barR, const Radius.circular(3)),
+        mgh(barR, const Color(0xFF161616), const Color(0xFF505050), const Color(0xFF1E1E1E)));
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.522, h * 0.310, w * 0.010, h * 0.260),
+        f(const Color(0x33FFFFFF)));
+    // Bore hole (open end facing viewer)
+    canvas.drawCircle(Offset(w * 0.500, h * 0.326), h * 0.024, f(const Color(0xFF040404)));
+    canvas.drawCircle(Offset(w * 0.500, h * 0.326), h * 0.013, f(const Color(0xFF000000)));
+    if (bounce) {
+      canvas.drawCircle(Offset(w * 0.500, h * 0.326), h * 0.020,
+          f(glowGreen)..style = PaintingStyle.stroke..strokeWidth = 1.8..blendMode = BlendMode.plus);
+    }
+
+    // Slide / Receiver (wide front face)
+    final slideR = Rect.fromLTWH(w * 0.340, h * 0.558, w * 0.320, h * 0.160);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(slideR, const Radius.circular(5)),
+        mgv(slideR, bodyDark, bodyMid, bodyLite));
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.340, h * 0.558, w * 0.320, h * 0.012),
+        f(const Color(0x44FFFFFF)));
+    // Ejection port right face
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.600, h * 0.580, w * 0.060, h * 0.090),
+        f(const Color(0xFF0A0A0A)));
+    // Sight notch
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.340, h * 0.558, w * 0.060, h * 0.018),
+        f(const Color(0xFF888888)));
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.362, h * 0.558, w * 0.020, h * 0.014),
+        f(const Color(0xFF111111)));
+    if (bounce) {
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.341, h * 0.572, w * 0.318, h * 0.016),
+          f(const Color(0x5500FF88))..blendMode = BlendMode.plus);
+    }
+
+    // Frame
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.368, h * 0.704, w * 0.264, h * 0.082),
+        f(bounce ? const Color(0xFF101A18) : const Color(0xFF232323)));
+
+    // Trigger guard
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.408, h * 0.760, w * 0.110, h * 0.070),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF111111))..style = PaintingStyle.stroke..strokeWidth = w * 0.007,
+    );
+    canvas.drawLine(Offset(w * 0.463, h * 0.768), Offset(w * 0.458, h * 0.810),
+        f(const Color(0xFF555555))..strokeWidth = w * 0.006);
+
+    // Grip (fills lower-center, extends off screen)
+    canvas.drawRRect(
+      RRect.fromLTRBAndCorners(
+          w * 0.410, h * 0.786, w * 0.590, h * 1.050,
+          bottomLeft: const Radius.circular(8),
+          bottomRight: const Radius.circular(8)),
+      f(bounce ? const Color(0xFF101A18) : const Color(0xFF141414)),
+    );
+    for (var gy = 0; gy < 4; gy++) {
+      for (var gx = 0; gx < 4; gx++) {
+        canvas.drawCircle(
+          Offset(w * 0.428 + gx * w * 0.030, h * 0.812 + gy * h * 0.046),
+          h * 0.005, f(const Color(0xFF272727)));
       }
     }
     if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.596, h * 0.762, w * 0.100, h * 0.012),
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.411, h * 0.830, w * 0.178, h * 0.016),
           f(const Color(0x8800FF88)));
     }
-
-    // 4. Trigger guard arc ──────────────────────────────────────────────────
-    canvas.drawArc(
-      Rect.fromLTWH(w * 0.566, h * 0.700, w * 0.088, h * 0.060),
-      0, math.pi, false,
-      f(const Color(0xFF111111))..style = PaintingStyle.stroke..strokeWidth = w * 0.005,
-    );
-    // Trigger
-    canvas.drawLine(
-      Offset(w * 0.610, h * 0.706), Offset(w * 0.604, h * 0.740),
-      f(const Color(0xFF555555))..strokeWidth = w * 0.004,
-    );
   }
 
-  /// Shotgun viewmodel (centered, dual barrels pointing upward, wood stock).
   // ignore: long-method
-  void _vmShotgun(Canvas canvas, double w, double h) {
+  void _vmShotgunAim(Canvas canvas, double w, double h) {
     Paint f(Color c) => Paint()..color = c;
     Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
-      ..shader = Gradient.linear(r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.5, 1.0]);
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.5, 1.0]);
     Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
-      ..shader = Gradient.linear(r.topLeft, r.topRight, [d, m, l], [0.0, 0.5, 1.0]);
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.5, 1.0]);
 
-    // 1. Dual barrels ─────────────────────────────────────────────────────
-    for (var side = 0; side < 2; side++) {
-      final bx = w * 0.380 + side * w * 0.116;
-      final bw2 = w * 0.102;
-      final bRect = Rect.fromLTWH(bx, h * 0.360, bw2, h * 0.393);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(bRect, const Radius.circular(4)),
-        mgv(bRect, const Color(0xFF1C1C1C), const Color(0xFF585858), const Color(0xFF3A3A3A)),
-      );
-      // Barrel edge highlight
-      canvas.drawRect(Rect.fromLTWH(bx, h * 0.360, bw2, h * 0.007),
-          f(const Color(0x44FFFFFF)));
-      // Muzzle hole
+    // Two barrel stubs (side-by-side, short, pointing at viewer)
+    final barXs = [w * 0.428, w * 0.510];
+    for (final bx in barXs) {
+      final bR = Rect.fromLTWH(bx, h * 0.260, w * 0.062, h * 0.240);
+      canvas.drawRRect(RRect.fromRectAndRadius(bR, const Radius.circular(4)),
+          mgh(bR, const Color(0xFF1C1C1C), const Color(0xFF585858), const Color(0xFF3A3A3A)));
+      canvas.drawRect(
+          Rect.fromLTWH(bx + w * 0.050, h * 0.260, w * 0.012, h * 0.240),
+          f(const Color(0x33FFFFFF)));
+      // Bore opening
+      canvas.drawCircle(Offset(bx + w * 0.031, h * 0.278), h * 0.022, f(const Color(0xFF060606)));
+      canvas.drawCircle(
+          Offset(bx + w * 0.031, h * 0.278), h * 0.012, f(const Color(0xFF000000)));
       canvas.drawOval(
-        Rect.fromLTWH(bx + bw2 * 0.14, h * 0.352, bw2 * 0.72, h * 0.030),
-        f(const Color(0xFF060606)),
-      );
-      canvas.drawOval(
-        Rect.fromLTWH(bx + bw2 * 0.10, h * 0.350, bw2 * 0.80, h * 0.034),
-        f(const Color(0xFF606060))..style = PaintingStyle.stroke..strokeWidth = 2,
-      );
+          Rect.fromLTWH(bx + w * 0.004, h * 0.256, w * 0.054, h * 0.044),
+          f(const Color(0xFF606060))..style = PaintingStyle.stroke..strokeWidth = 2.0);
     }
     // Rib between barrels
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.481, h * 0.360, w * 0.012, h * 0.393), f(const Color(0xFF888888)));
+        Rect.fromLTWH(w * 0.490, h * 0.260, w * 0.020, h * 0.240),
+        f(const Color(0xFF888888)));
 
-    // 2. Barrel band (metal ring) ─────────────────────────────────────────
-    final bandR = Rect.fromLTWH(w * 0.372, h * 0.584, w * 0.232, h * 0.026);
-    canvas.drawRect(bandR, mgh(bandR, const Color(0xFF3A3A3A), const Color(0xFF888888), const Color(0xFF4A4A4A)));
-    canvas.drawRect(Rect.fromLTWH(w * 0.372, h * 0.584, w * 0.232, h * 0.006),
-        f(const Color(0x33FFFFFF)));
+    // Barrel band
+    final bandR = Rect.fromLTWH(w * 0.394, h * 0.408, w * 0.212, h * 0.026);
+    canvas.drawRect(bandR,
+        mgh(bandR, const Color(0xFF3A3A3A), const Color(0xFF888888), const Color(0xFF4A4A4A)));
 
-    // 3. Pump fore-grip (wood) ────────────────────────────────────────────
-    final pumpR = Rect.fromLTWH(w * 0.366, h * 0.756, w * 0.244, h * 0.070);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(pumpR, const Radius.circular(5)),
-      mgh(pumpR, const Color(0xFF3A1A06), const Color(0xFF7A4015), const Color(0xFF3A1A06)),
-    );
-    for (var i = 0; i < 7; i++) {
-      final lx = w * 0.378 + i * w * 0.028;
-      canvas.drawLine(Offset(lx, h * 0.760), Offset(lx, h * 0.822),
-          f(const Color(0xFF2A0E03))..strokeWidth = w * 0.006);
+    // Fore-end / pump (wood, front view = horizontal rectangle)
+    final pumpR = Rect.fromLTWH(w * 0.346, h * 0.500, w * 0.308, h * 0.074);
+    canvas.drawRRect(RRect.fromRectAndRadius(pumpR, const Radius.circular(5)),
+        mgh(pumpR, const Color(0xFF3A1A06), const Color(0xFF7A4015), const Color(0xFF3A1A06)));
+    for (var i = 0; i < 5; i++) {
+      canvas.drawLine(
+        Offset(w * 0.362 + i * w * 0.042, h * 0.504),
+        Offset(w * 0.362 + i * w * 0.042, h * 0.570),
+        f(const Color(0xFF2A0E03))..strokeWidth = w * 0.005,
+      );
     }
-    canvas.drawRect(Rect.fromLTWH(w * 0.366, h * 0.756, w * 0.244, h * 0.010),
+
+    // Receiver / action
+    final recR = Rect.fromLTWH(w * 0.310, h * 0.570, w * 0.380, h * 0.100);
+    canvas.drawRect(recR,
+        mgv(recR, const Color(0xFF252525), const Color(0xFF505050), const Color(0xFF303030)));
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.310, h * 0.570, w * 0.380, h * 0.012),
         f(const Color(0x33FFFFFF)));
 
-    // 4. Receiver / action ────────────────────────────────────────────────
-    final recR = Rect.fromLTWH(w * 0.356, h * 0.826, w * 0.262, h * 0.080);
-    canvas.drawRect(recR, mgv(recR, const Color(0xFF252525), const Color(0xFF505050), const Color(0xFF303030)));
-    canvas.drawRect(Rect.fromLTWH(w * 0.356, h * 0.826, w * 0.262, h * 0.010),
-        f(const Color(0x33FFFFFF)));
-    // Trigger guard arc
+    // Trigger guard
     canvas.drawArc(
-      Rect.fromLTWH(w * 0.397, h * 0.898, w * 0.096, h * 0.063),
-      0, math.pi, false,
+      Rect.fromLTWH(w * 0.390, h * 0.642, w * 0.110, h * 0.068),
+      -math.pi, math.pi, false,
       f(const Color(0xFF111111))..style = PaintingStyle.stroke..strokeWidth = w * 0.006,
     );
-    canvas.drawLine(Offset(w * 0.444, h * 0.902), Offset(w * 0.428, h * 0.944),
+    canvas.drawLine(Offset(w * 0.445, h * 0.650), Offset(w * 0.440, h * 0.690),
         f(const Color(0xFF444444))..strokeWidth = w * 0.004);
 
-    // 5. Wood stock ───────────────────────────────────────────────────────
-    final stR = Rect.fromLTWH(w * 0.352, h * 0.906, w * 0.308, h * 0.120);
+    // Stock (extends off-screen at bottom)
     canvas.drawRRect(
       RRect.fromLTRBAndCorners(
-        stR.left, stR.top, stR.right, h * 1.04,
-        bottomLeft: const Radius.circular(8),
-        bottomRight: const Radius.circular(8),
-      ),
-      mgh(stR, const Color(0xFF3A1606), const Color(0xFF7A4010), const Color(0xFF3A1606)),
+          w * 0.310, h * 0.668, w * 0.692, h * 1.050,
+          bottomLeft: const Radius.circular(8),
+          bottomRight: const Radius.circular(8)),
+      Paint()
+        ..shader = Gradient.linear(
+            Offset(w * 0.310, 0), Offset(w * 0.692, 0),
+            [const Color(0xFF3A1606), const Color(0xFF7A4010), const Color(0xFF3A1606)],
+            [0.0, 0.5, 1.0]),
     );
-    // Wood grain lines
     for (var i = 0; i < 5; i++) {
-      final gx = w * 0.368 + i * w * 0.052;
-      canvas.drawLine(Offset(gx, h * 0.910), Offset(gx - w * 0.010, h * 1.04),
-          f(const Color(0xFF2A0E03))..strokeWidth = w * 0.005);
+      canvas.drawLine(
+        Offset(w * 0.328 + i * w * 0.060, h * 0.672),
+        Offset(w * 0.318 + i * w * 0.060, h * 1.050),
+        f(const Color(0xFF2A0E03))..strokeWidth = w * 0.004,
+      );
     }
-    canvas.drawRect(Rect.fromLTWH(w * 0.352, h * 0.906, w * 0.308, h * 0.010),
-        f(const Color(0xFF8A5020)));
   }
 
-  /// Rifle / Bounce-Rifle viewmodel (long barrel from lower-right to upper-left).
   // ignore: long-method
-  void _vmRifle(Canvas canvas, double w, double h, {required bool bounce}) {
+  void _vmRifleAim(Canvas canvas, double w, double h, {required bool bounce}) {
     Paint f(Color c) => Paint()..color = c;
     Paint mgv(Rect r, Color d, Color m, Color l) => Paint()
-      ..shader = Gradient.linear(r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
+      ..shader = Gradient.linear(
+          r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
     Paint mgh(Rect r, Color d, Color m, Color l) => Paint()
-      ..shader = Gradient.linear(r.topLeft, r.topRight, [d, m, l], [0.0, 0.45, 1.0]);
+      ..shader = Gradient.linear(
+          r.topLeft, r.topRight, [d, m, l], [0.0, 0.45, 1.0]);
 
     const Color glowB = Color(0xFF44AAFF);
-    final Color bodyDark = bounce ? const Color(0xFF061218) : const Color(0xFF141414);
-    final Color bodyMid  = bounce ? const Color(0xFF0C2840) : const Color(0xFF303030);
-    final Color bodyLite = bounce ? const Color(0xFF104068) : const Color(0xFF505050);
+    final Color bodyDark =
+        bounce ? const Color(0xFF061218) : const Color(0xFF141414);
+    final Color bodyMid =
+        bounce ? const Color(0xFF0C2840) : const Color(0xFF303030);
+    final Color bodyLite =
+        bounce ? const Color(0xFF104068) : const Color(0xFF505050);
 
-    // 1. Main barrel ──────────────────────────────────────────────────────
-    final barR = Rect.fromLTWH(w * 0.034, h * 0.576, w * 0.562, h * 0.030);
-    canvas.drawRect(barR,
-        mgh(barR, const Color(0xFF1A1A1A), const Color(0xFF484848), const Color(0xFF2A2A2A)));
-    canvas.drawRect(Rect.fromLTWH(w * 0.034, h * 0.576, w * 0.562, h * 0.004),
-        f(const Color(0x55FFFFFF)));
-    // Muzzle device (3 spaced blocks at barrel tip)
+    // 1. Barrel stub (foreshortened — short, central)
+    final barR = Rect.fromLTWH(w * 0.466, h * 0.220, w * 0.068, h * 0.310);
+    canvas.drawRRect(RRect.fromRectAndRadius(barR, const Radius.circular(3)),
+        mgh(barR, const Color(0xFF181818), const Color(0xFF484848), const Color(0xFF242424)));
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.524, h * 0.220, w * 0.010, h * 0.310),
+        f(const Color(0x33FFFFFF)));
+    // Muzzle device (3 small blocks at the opening)
     for (var i = 0; i < 3; i++) {
       canvas.drawRect(
-        Rect.fromLTWH(w * 0.037 + i * w * 0.010, h * 0.574, w * 0.007, h * 0.034),
+        Rect.fromLTWH(w * 0.470 + i * w * 0.016, h * 0.210, w * 0.010, h * 0.022),
         f(const Color(0xFF404040)),
       );
     }
-    // Muzzle hole
-    canvas.drawCircle(Offset(w * 0.058, h * 0.591), h * 0.009, f(const Color(0xFF060606)));
-    // Front sight post
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.120, h * 0.560, w * 0.008, h * 0.016), f(const Color(0xFFDDDDDD)));
-
+    // Bore opening (facing viewer)
+    canvas.drawCircle(Offset(w * 0.500, h * 0.232), h * 0.026, f(const Color(0xFF040404)));
+    canvas.drawCircle(Offset(w * 0.500, h * 0.232), h * 0.014, f(const Color(0xFF000000)));
     if (bounce) {
-      // Energy rings along barrel
-      for (var i = 0; i < 5; i++) {
-        final cx = w * 0.12 + i * w * 0.088;
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(cx, h * 0.591), width: w * 0.022, height: h * 0.032),
-          f(glowB)..style = PaintingStyle.stroke..strokeWidth = 1.8..blendMode = BlendMode.plus,
-        );
+      for (var i = 0; i < 3; i++) {
+        canvas.drawCircle(
+            Offset(w * 0.500, h * 0.232), h * (0.018 + i * 0.010),
+            f(glowB)..style = PaintingStyle.stroke..strokeWidth = 1.5..blendMode = BlendMode.plus);
       }
-      // Glow channel along barrel
-      canvas.drawRect(
-        Rect.fromLTWH(w * 0.04, h * 0.582, w * 0.54, h * 0.010),
-        f(const Color(0x1844AAFF))..blendMode = BlendMode.plus,
-      );
     }
 
-    // 2. Gas tube (thin, above barrel mid-section) ────────────────────────
+    // 2. Gas tube / rail (thin strip beside barrel, right side)
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.09, h * 0.563, w * 0.38, h * 0.013), f(const Color(0xFF222222)));
+        Rect.fromLTWH(w * 0.522, h * 0.222, w * 0.016, h * 0.220),
+        f(const Color(0xFF222222)));
 
-    // 3. Handguard ────────────────────────────────────────────────────────
-    final hgR = Rect.fromLTWH(w * 0.440, h * 0.568, w * 0.106, h * 0.102);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(hgR, const Radius.circular(3)),
-      mgv(hgR, bodyDark, bodyMid, bodyDark),
-    );
+    // 3. Handguard (wraps barrel mid-section — front face = wide rectangle)
+    final hgR = Rect.fromLTWH(w * 0.344, h * 0.458, w * 0.312, h * 0.124);
+    canvas.drawRRect(RRect.fromRectAndRadius(hgR, const Radius.circular(4)),
+        mgv(hgR, bodyDark, bodyMid, bodyDark));
+    // Ventilation slots
     for (var i = 0; i < 4; i++) {
-      canvas.drawLine(
-        Offset(w * 0.452 + i * w * 0.022, h * 0.572),
-        Offset(w * 0.452 + i * w * 0.022, h * 0.578),
-        f(const Color(0xFF555555))..strokeWidth = w * 0.003,
+      canvas.drawRect(
+        Rect.fromLTWH(w * 0.360 + i * w * 0.056, h * 0.472, w * 0.034, h * 0.016),
+        f(const Color(0xFF111111)),
       );
     }
 
-    // 4. Upper receiver ───────────────────────────────────────────────────
-    final urR = Rect.fromLTWH(w * 0.530, h * 0.550, w * 0.268, h * 0.114);
-    canvas.drawRect(urR, mgv(urR, bodyMid, bodyLite, bodyMid));
-    canvas.drawRect(Rect.fromLTWH(w * 0.530, h * 0.550, w * 0.268, h * 0.006),
-        f(const Color(0x44FFFFFF)));
-    // Ejection port
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.728, h * 0.574, w * 0.052, h * 0.050), f(const Color(0xFF090909)));
-    // Charging handle
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.782, h * 0.558, w * 0.018, h * 0.042), f(const Color(0xFF1A1A1A)));
-
-    // 5. Top optic / carry handle ─────────────────────────────────────────
+    // 4. Scope / Carry handle (sits above upper receiver)
     if (!bounce) {
-      // Carry handle with rear sight
-      final chR = Rect.fromLTWH(w * 0.558, h * 0.512, w * 0.202, h * 0.040);
-      canvas.drawRect(
-          chR, mgv(chR, const Color(0xFF191919), const Color(0xFF353535), const Color(0xFF191919)));
-      canvas.drawRect(Rect.fromLTWH(w * 0.558, h * 0.512, w * 0.202, h * 0.005),
+      final chR = Rect.fromLTWH(w * 0.310, h * 0.440, w * 0.380, h * 0.048);
+      canvas.drawRect(chR,
+          mgv(chR, const Color(0xFF191919), const Color(0xFF353535), const Color(0xFF191919)));
+      canvas.drawRect(Rect.fromLTWH(w * 0.310, h * 0.440, w * 0.380, h * 0.006),
           f(const Color(0x33FFFFFF)));
       for (var i = 0; i < 5; i++) {
-        canvas.drawLine(Offset(w * 0.566 + i * w * 0.036, h * 0.515),
-            Offset(w * 0.566 + i * w * 0.036, h * 0.520),
+        canvas.drawLine(Offset(w * 0.322 + i * w * 0.060, h * 0.444),
+            Offset(w * 0.322 + i * w * 0.060, h * 0.452),
             f(const Color(0xFF555555))..strokeWidth = w * 0.003);
       }
     } else {
-      // Scope with glowing energy lens
-      final scopeR = Rect.fromLTWH(w * 0.562, h * 0.504, w * 0.192, h * 0.050);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(scopeR, const Radius.circular(4)),
-        mgv(scopeR, const Color(0xFF060E18), const Color(0xFF0C2035), const Color(0xFF060E18)),
-      );
-      // Lens
+      // Scope tube with glowing lens
+      final scopeR = Rect.fromLTWH(w * 0.308, h * 0.430, w * 0.384, h * 0.058);
+      canvas.drawRRect(RRect.fromRectAndRadius(scopeR, const Radius.circular(6)),
+          mgv(scopeR, const Color(0xFF060E18), const Color(0xFF0C2035), const Color(0xFF060E18)));
+      // Scope lens visible from front
       canvas.drawOval(
-          Rect.fromLTWH(w * 0.628, h * 0.509, w * 0.062, h * 0.042), f(const Color(0xFF050A10)));
+          Rect.fromLTWH(w * 0.460, h * 0.436, w * 0.080, h * 0.046),
+          f(const Color(0xFF050A10)));
       canvas.drawOval(
-        Rect.fromLTWH(w * 0.636, h * 0.514, w * 0.044, h * 0.030),
-        f(glowB)..blendMode = BlendMode.plus,
-      );
-      canvas.drawLine(Offset(w * 0.646, h * 0.520), Offset(w * 0.654, h * 0.526),
-          f(const Color(0x99FFFFFF))..strokeWidth = 1.5);
-      // Glow top rail
-      canvas.drawRect(Rect.fromLTWH(w * 0.530, h * 0.550, w * 0.268, h * 0.006),
-          f(const Color(0x5544AAFF))..blendMode = BlendMode.plus);
+          Rect.fromLTWH(w * 0.468, h * 0.440, w * 0.064, h * 0.038),
+          f(glowB)..blendMode = BlendMode.plus);
+      canvas.drawLine(Offset(w * 0.484, h * 0.452), Offset(w * 0.498, h * 0.462),
+          f(const Color(0x99FFFFFF))..strokeWidth = 2.0);
     }
 
-    // 6. Lower receiver ────────────────────────────────────────────────────
-    final lrR = Rect.fromLTWH(w * 0.525, h * 0.664, w * 0.272, h * 0.118);
+    // 5. Upper receiver (wide, fills center)
+    final urR = Rect.fromLTWH(w * 0.296, h * 0.566, w * 0.408, h * 0.126);
+    canvas.drawRect(urR, mgv(urR, bodyMid, bodyLite, bodyMid));
+    canvas.drawRect(Rect.fromLTWH(w * 0.296, h * 0.566, w * 0.408, h * 0.008),
+        f(const Color(0x44FFFFFF)));
+    // Ejection port (right side)
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.636, h * 0.584, w * 0.068, h * 0.076),
+        f(const Color(0xFF090909)));
+    // Charging handle (far right)
+    canvas.drawRect(
+        Rect.fromLTWH(w * 0.696, h * 0.574, w * 0.022, h * 0.052),
+        f(const Color(0xFF1A1A1A)));
+
+    // 6. Lower receiver
+    final lrR = Rect.fromLTWH(w * 0.296, h * 0.688, w * 0.408, h * 0.112);
     canvas.drawRect(lrR, mgv(lrR, bodyDark, bodyMid, bodyDark));
 
-    // 7. Magazine ─────────────────────────────────────────────────────────
+    // 7. Magazine (front face — fills lower center, extends off screen)
     canvas.drawRRect(
       RRect.fromLTRBAndCorners(
-        w * 0.587, h * 0.782, w * 0.673, h * 0.965,
-        bottomLeft: const Radius.circular(4),
-        bottomRight: const Radius.circular(4),
-      ),
-      mgv(Rect.fromLTWH(w * 0.587, h * 0.782, w * 0.086, h * 0.183),
+          w * 0.410, h * 0.800, w * 0.590, h * 1.050,
+          bottomLeft: const Radius.circular(5),
+          bottomRight: const Radius.circular(5)),
+      mgv(Rect.fromLTWH(w * 0.410, h * 0.800, w * 0.180, h * 0.250),
           bodyMid, bodyLite, bodyMid),
     );
     canvas.drawRect(
-      Rect.fromLTWH(w * 0.587, h * 0.782, w * 0.086, h * 0.009),
-      f(bounce ? const Color(0xFF44AAFF) : const Color(0xFF666666)),
-    );
-    canvas.drawLine(Offset(w * 0.630, h * 0.792), Offset(w * 0.630, h * 0.960),
-        f(const Color(0xFF111111))..strokeWidth = w * 0.004);
+        Rect.fromLTWH(w * 0.410, h * 0.800, w * 0.180, h * 0.012),
+        f(bounce ? const Color(0xFF44AAFF) : const Color(0xFF666666)));
+    canvas.drawLine(Offset(w * 0.500, h * 0.812), Offset(w * 0.500, h * 1.050),
+        f(const Color(0xFF111111))..strokeWidth = w * 0.005);
     if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.588, h * 0.782, w * 0.084, h * 0.010),
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.411, h * 0.800, w * 0.178, h * 0.014),
           f(const Color(0x7744AAFF))..blendMode = BlendMode.plus);
     }
 
-    // 8. Pistol grip ──────────────────────────────────────────────────────
+    // 8. Pistol grip (right side, off screen)
     canvas.drawRRect(
       RRect.fromLTRBAndCorners(
-        w * 0.698, h * 0.782, w * 0.794, h * 1.02,
-        bottomLeft: const Radius.circular(6),
-        bottomRight: const Radius.circular(6),
-      ),
+          w * 0.590, h * 0.790, w * 0.720, h * 1.050,
+          bottomLeft: const Radius.circular(7),
+          bottomRight: const Radius.circular(7)),
       f(bounce ? const Color(0xFF061018) : const Color(0xFF111111)),
     );
     for (var gy = 0; gy < 4; gy++) {
       for (var gx = 0; gx < 3; gx++) {
         canvas.drawCircle(
-          Offset(w * 0.712 + gx * w * 0.022, h * 0.808 + gy * h * 0.040),
-          h * 0.004,
-          f(const Color(0xFF1E1E1E)),
-        );
+          Offset(w * 0.606 + gx * w * 0.024, h * 0.816 + gy * h * 0.044),
+          h * 0.005, f(const Color(0xFF1E1E1E)));
       }
     }
     if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.698, h * 0.824, w * 0.096, h * 0.010),
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.591, h * 0.836, w * 0.128, h * 0.012),
           f(const Color(0x5544AAFF)));
     }
 
-    // 9. Trigger guard ────────────────────────────────────────────────────
+    // 9. Trigger guard + trigger
     canvas.drawArc(
-      Rect.fromLTWH(w * 0.640, h * 0.774, w * 0.096, h * 0.066),
-      0, math.pi, false,
-      f(const Color(0xFF0E0E0E))..style = PaintingStyle.stroke..strokeWidth = w * 0.006,
+      Rect.fromLTWH(w * 0.434, h * 0.774, w * 0.120, h * 0.070),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF0E0E0E))..style = PaintingStyle.stroke..strokeWidth = w * 0.007,
     );
-    canvas.drawLine(Offset(w * 0.688, h * 0.780), Offset(w * 0.674, h * 0.824),
-        f(const Color(0xFF444444))..strokeWidth = w * 0.004);
+    canvas.drawLine(Offset(w * 0.494, h * 0.782), Offset(w * 0.486, h * 0.826),
+        f(const Color(0xFF444444))..strokeWidth = w * 0.005);
 
-    // 10. Stock (extends off right edge) ──────────────────────────────────
-    final stR = Rect.fromLTWH(w * 0.782, h * 0.652, w * 0.244, h * 0.112);
+    // 10. Buttstock (left side, extends off screen)
     canvas.drawRRect(
-      RRect.fromRectAndRadius(stR, const Radius.circular(4)),
-      mgv(stR, bodyDark, bodyMid, bodyDark),
+      RRect.fromLTRBAndCorners(
+          w * 0.280, h * 0.690, w * 0.430, h * 1.050,
+          bottomLeft: const Radius.circular(6),
+          bottomRight: const Radius.circular(6)),
+      mgv(Rect.fromLTWH(w * 0.280, h * 0.690, w * 0.150, h * 0.360),
+          bodyDark, bodyMid, bodyDark),
     );
     if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.786, h * 0.678, w * 0.236, h * 0.012),
+      canvas.drawRect(
+          Rect.fromLTWH(w * 0.284, h * 0.712, w * 0.142, h * 0.014),
           f(const Color(0x4444AAFF)));
     }
   }
+
+
 
   /// Checks if a sprite at [target] is visible from the player's position
   /// by performing a DDA raycast against the map.
