@@ -705,106 +705,110 @@ class RaycastRenderer extends PositionComponent
       ..shader = Gradient.linear(
           r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
 
-    // Colour palette — bounce gets a very subtle dark-teal tint, not neon
-    final Color bdark = bounce ? const Color(0xFF0D1C19) : const Color(0xFF141414);
-    final Color bmid  = bounce ? const Color(0xFF1C3530) : const Color(0xFF323232);
-    final Color blite = bounce ? const Color(0xFF2A4A44) : const Color(0xFF585858);
-    final Color accent= bounce ? const Color(0xFF1DFFB4) : const Color(0xFF888888);
+    // Palette — medium gray base (NOT near-black) for visibility at game scale
+    // bounce: dark-teal tint. 3-tone rule: dark/body/bright.
+    final Color shadow = bounce ? const Color(0xFF0A1A16) : const Color(0xFF1A1A1A);
+    final Color body   = bounce ? const Color(0xFF1E4840) : const Color(0xFF505050);
+    final Color bright = bounce ? const Color(0xFF2E6858) : const Color(0xFF787878);
+    final Color accent = bounce ? const Color(0xFF1DFFB4) : const Color(0xFF999999);
 
-    // ── 1. Barrel — thin, long, dark steel ──────────────────────────────
-    final bx = w * 0.491;
-    final barR = Rect.fromLTWH(bx, h * 0.105, w * 0.018, h * 0.438);
-    canvas.drawRect(barR,
-        mgh(barR, const Color(0xFF0E0E0E), const Color(0xFF424242), const Color(0xFF161616)));
-    // Bright left-edge specular line
-    canvas.drawLine(Offset(bx, h * 0.105), Offset(bx, h * 0.543),
-        f(const Color(0x55FFFFFF))..strokeWidth = 1.5);
-    // Muzzle crown — tiny dark ring at bore
-    canvas.drawCircle(Offset(w * 0.500, h * 0.118), h * 0.009,
-        f(const Color(0xFF030303)));
-    // Tiny front-sight blade
-    canvas.drawRect(Rect.fromLTWH(w * 0.495, h * 0.094, w * 0.010, h * 0.016),
-        f(const Color(0xFFCCCCCC)));
-    // Bounce edge glow — single faint line only
-    if (bounce) {
-      canvas.drawLine(Offset(bx + w * 0.018, h * 0.105),
-          Offset(bx + w * 0.018, h * 0.543),
-          f(accent)..strokeWidth = 1.2..blendMode = BlendMode.plus);
-    }
-
-    // ── 2. Slide (rectangular, clearly wider than barrel) ───────────────
-    final slideR = Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.080, h * 0.148);
-    canvas.drawRRect(RRect.fromRectAndRadius(slideR, const Radius.circular(3)),
-        mgh(slideR, bdark, bmid, blite));
+    // ── 1. SLIDE — THE DOMINANT MASS (Glock-style: barrel inside slide) ──
+    // On a real pistol, the SLIDE is the big visible block. The barrel
+    // is hidden inside it; only a tiny muzzle stub protrudes at the top.
+    final slideR = Rect.fromLTWH(w * 0.446, h * 0.076, w * 0.108, h * 0.502);
+    // Horizontal gradient: dark-left, bright-center, dark-right → 3D cylinder look
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(slideR, const Radius.circular(3)),
+      mgh(slideR, shadow, bright, shadow));
+    // Bright top edge (muzzle end)
+    canvas.drawLine(Offset(w * 0.446, h * 0.076), Offset(w * 0.554, h * 0.076),
+        f(const Color(0x77FFFFFF))..strokeWidth = 2.0);
+    // ── Ejection port — large, clear, high-contrast (most recognisable gun detail)
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.080, h * 0.008),
-        f(const Color(0x55FFFFFF)));
-    // Ejection port cut-out
+        Rect.fromLTWH(w * 0.514, h * 0.220, w * 0.040, h * 0.180),
+        f(const Color(0xFF080808)));
+    // Brass cartridge hint inside port
     canvas.drawRect(
-        Rect.fromLTWH(w * 0.508, h * 0.540, w * 0.032, h * 0.072),
-        f(const Color(0xFF060606)));
-    // Rear serrations (3 lines on back of slide)
-    for (var i = 0; i < 3; i++) {
+        Rect.fromLTWH(w * 0.518, h * 0.240, w * 0.024, h * 0.070),
+        f(const Color(0xFF8B6010)));
+    // ── Rear serrations (5 grooves on back portion of slide)
+    for (var i = 0; i < 5; i++) {
       canvas.drawLine(
-        Offset(w * 0.463, h * 0.544 + i * h * 0.022),
-        Offset(w * 0.472, h * 0.544 + i * h * 0.022),
-        f(const Color(0xFF0A0A0A))..strokeWidth = h * 0.008,
+        Offset(w * 0.448, h * 0.430 + i * h * 0.024),
+        Offset(w * 0.464, h * 0.430 + i * h * 0.024),
+        f(const Color(0xFF111111))..strokeWidth = h * 0.012,
       );
     }
-    // Rear sight — two white dots flanking a notch
-    canvas.drawRect(Rect.fromLTWH(w * 0.460, h * 0.528, w * 0.012, h * 0.014),
-        f(const Color(0xFF888888)));
-    canvas.drawCircle(Offset(w * 0.464, h * 0.536), h * 0.003,
+    // ── Rear sight (two posts)
+    canvas.drawRect(Rect.fromLTWH(w * 0.450, h * 0.078, w * 0.010, h * 0.020),
+        f(const Color(0xFF606060)));
+    canvas.drawCircle(Offset(w * 0.455, h * 0.093), h * 0.005,
         f(const Color(0xFFFFFFFF)));
-    canvas.drawCircle(Offset(w * 0.536, h * 0.536), h * 0.003,
+    canvas.drawRect(Rect.fromLTWH(w * 0.540, h * 0.078, w * 0.010, h * 0.020),
+        f(const Color(0xFF606060)));
+    canvas.drawCircle(Offset(w * 0.545, h * 0.093), h * 0.005,
         f(const Color(0xFFFFFFFF)));
+    // Bounce: faint teal top-edge line
     if (bounce) {
-      canvas.drawRect(Rect.fromLTWH(w * 0.461, h * 0.534, w * 0.078, h * 0.008),
-          f(accent)..blendMode = BlendMode.plus
-            ..color = accent.withAlpha(60));
+      canvas.drawLine(Offset(w * 0.447, h * 0.077), Offset(w * 0.447, h * 0.577),
+          f(accent)..strokeWidth = 1.5..blendMode = BlendMode.plus
+            ..color = accent.withAlpha(80));
     }
 
-    // ── 3. Dust cover / frame (below slide) ─────────────────────────────
-    canvas.drawRect(
-        Rect.fromLTWH(w * 0.468, h * 0.668, w * 0.064, h * 0.064),
-        f(bdark));
+    // ── 2. Barrel stub — tiny protrusion ABOVE side top (muzzle end) ─────
+    canvas.drawRect(Rect.fromLTWH(w * 0.476, h * 0.030, w * 0.028, h * 0.052),
+        f(const Color(0xFF2A2A2A)));
+    // Bore hole
+    canvas.drawCircle(Offset(w * 0.490, h * 0.042), h * 0.011,
+        f(const Color(0xFF060606)));
+    // Front sight blade on top of barrel stub
+    canvas.drawRect(Rect.fromLTWH(w * 0.483, h * 0.072, w * 0.012, h * 0.014),
+        f(const Color(0xFFDDDDDD)));
 
-    // ── 4. Trigger guard (open arc) ──────────────────────────────────────
+    // ── 3. Frame / dust cover — below slide, slightly wider ───────────────
+    final frameR = Rect.fromLTWH(w * 0.440, h * 0.572, w * 0.120, h * 0.096);
+    canvas.drawRect(frameR,
+        mgh(frameR, shadow, body, shadow));
+    // Picatinny rail groove at bottom of frame
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.660, w * 0.110, h * 0.007),
+        f(const Color(0xFF111111)));
+
+    // ── 4. Trigger guard — lighter stroke so it reads clearly ─────────────
     canvas.drawArc(
-      Rect.fromLTWH(w * 0.472, h * 0.712, w * 0.056, h * 0.052),
+      Rect.fromLTWH(w * 0.459, h * 0.658, w * 0.066, h * 0.060),
       -math.pi, math.pi, false,
-      f(const Color(0xFF0E0E0E))
+      f(const Color(0xFF666666))
         ..style = PaintingStyle.stroke
-        ..strokeWidth = w * 0.005,
+        ..strokeWidth = w * 0.007,
     );
-    // Trigger blade
-    canvas.drawLine(Offset(w * 0.500, h * 0.720), Offset(w * 0.497, h * 0.752),
-        f(const Color(0xFF4A4A4A))..strokeWidth = w * 0.004);
+    // Trigger
+    canvas.drawLine(Offset(w * 0.492, h * 0.666), Offset(w * 0.488, h * 0.704),
+        f(const Color(0xFF555555))..strokeWidth = w * 0.006);
 
-    // ── 5. Grip (angled, extends off-screen) ─────────────────────────────
-    // Path gives the grip an angled rear like a real pistol
+    // ── 5. Grip — angled, texured, extends off-screen ────────────────────
     final gripPath = Path()
-      ..moveTo(w * 0.465, h * 0.732)
-      ..lineTo(w * 0.529, h * 0.732)
-      ..lineTo(w * 0.538, h * 1.040)
-      ..lineTo(w * 0.465, h * 1.040)
+      ..moveTo(w * 0.442, h * 0.710)
+      ..lineTo(w * 0.542, h * 0.710)
+      ..lineTo(w * 0.550, h * 1.050)
+      ..lineTo(w * 0.440, h * 1.050)
       ..close();
-    canvas.drawPath(gripPath, f(bdark));
-    // Stippling
-    for (var gy = 0; gy < 3; gy++) {
+    canvas.drawPath(gripPath, f(shadow));
+    // Stippling grid
+    for (var gy = 0; gy < 4; gy++) {
       for (var gx = 0; gx < 3; gx++) {
         canvas.drawCircle(
-          Offset(w * 0.474 + gx * w * 0.016, h * 0.754 + gy * h * 0.040),
-          h * 0.0035, f(const Color(0xFF2A2A2A)));
+          Offset(w * 0.460 + gx * w * 0.018, h * 0.730 + gy * h * 0.042),
+          h * 0.004, f(const Color(0xFF2E2E2E)));
       }
     }
-    // Left-edge bevel
-    canvas.drawLine(Offset(w * 0.465, h * 0.732), Offset(w * 0.465, h * 1.040),
-        f(bmid)..strokeWidth = 2.0);
-    // Bounce mag-base accent band
+    // Left bright bevel (shows grip thickness)
+    canvas.drawLine(Offset(w * 0.442, h * 0.710), Offset(w * 0.440, h * 1.050),
+        f(body)..strokeWidth = 3.0);
+    // Magazine base plate
+    canvas.drawRect(Rect.fromLTWH(w * 0.442, h * 0.994, w * 0.100, h * 0.018),
+        f(const Color(0xFF888888)));
     if (bounce) {
-      canvas.drawRect(
-          Rect.fromLTWH(w * 0.466, h * 0.792, w * 0.072, h * 0.012),
+      canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.810, w * 0.098, h * 0.014),
           f(accent)..color = accent.withAlpha(80));
     }
   }
@@ -819,84 +823,104 @@ class RaycastRenderer extends PositionComponent
       ..shader = Gradient.linear(
           r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.5, 1.0]);
 
-    // ── 1. Two thin barrels (side-by-side) ───────────────────────────────
-    // Tight spacing — they read as a pair, not two separate wide tubes
-    final barXs = [w * 0.488, w * 0.504];
-    for (final bx in barXs) {
-      final bR = Rect.fromLTWH(bx, h * 0.095, w * 0.012, h * 0.440);
-      canvas.drawRect(bR,
-          mgh(bR, const Color(0xFF121212), const Color(0xFF4A4A4A), const Color(0xFF1A1A1A)));
-      canvas.drawLine(Offset(bx, h * 0.095), Offset(bx, h * 0.535),
-          f(const Color(0x44FFFFFF))..strokeWidth = 1.0);
+    // Palette — wood + steel
+    const Color brlDark  = Color(0xFF1E1E1E);
+    const Color brlMid   = Color(0xFF545454);
+    const Color woodDark = Color(0xFF2C1004);
+    const Color woodMid  = Color(0xFF7A4015);
+    const Color recDark  = Color(0xFF1C1C1C);
+    const Color recMid   = Color(0xFF505050);
+
+    // ── 1. Twin barrels — side by side, clear parallel lines ─────────────
+    // Shotgun barrels ARE supposed to be long (they take ~65% of total length).
+    // Each barrel wider than before so they read at game scale.
+    final barXL = w * 0.480;
+    final barXR = w * 0.502;
+    final barW  = w * 0.018;
+    for (final bx in [barXL, barXR]) {
+      final bR = Rect.fromLTWH(bx, h * 0.050, barW, h * 0.476);
+      canvas.drawRect(bR, mgh(bR, brlDark, brlMid, brlDark));
+      // Left-edge specular
+      canvas.drawLine(Offset(bx, h * 0.050), Offset(bx, h * 0.526),
+          f(const Color(0x66FFFFFF))..strokeWidth = 1.5);
     }
-    // Raised rib between barrels
-    canvas.drawRect(Rect.fromLTWH(w * 0.500, h * 0.100, w * 0.004, h * 0.430),
-        f(const Color(0xFF999999)));
-    // Muzzle crowns
-    for (final bx in barXs) {
-      canvas.drawOval(Rect.fromLTWH(bx, h * 0.093, w * 0.012, h * 0.014),
-          f(const Color(0xFF3A3A3A))
-            ..style = PaintingStyle.stroke ..strokeWidth = 1.2);
+    // Raised rib between barrels (distinctive shotgun feature)
+    canvas.drawRect(Rect.fromLTWH(w * 0.498, h * 0.055, w * 0.004, h * 0.466),
+        f(const Color(0xFFAAAAAA)));
+    // Muzzle crowns — ovals at top
+    for (final bx in [barXL, barXR]) {
+      canvas.drawOval(Rect.fromLTWH(bx - w * 0.002, h * 0.044, barW + w * 0.004, h * 0.018),
+          f(const Color(0xFF2A2A2A))..style = PaintingStyle.stroke..strokeWidth = 2.0);
+      canvas.drawCircle(Offset(bx + barW / 2, h * 0.053), h * 0.008,
+          f(const Color(0xFF070707)));
     }
 
-    // ── 2. Barrel band (metal ring) ───────────────────────────────────────
-    final bandR = Rect.fromLTWH(w * 0.482, h * 0.360, w * 0.036, h * 0.020);
+    // ── 2. Barrel band (metal retaining ring ~40% down) ───────────────────
+    final bandR = Rect.fromLTWH(w * 0.474, h * 0.298, w * 0.052, h * 0.026);
     canvas.drawRect(bandR,
-        mgh(bandR, const Color(0xFF2E2E2E), const Color(0xFF888888), const Color(0xFF3A3A3A)));
+        mgh(bandR, const Color(0xFF282828), const Color(0xFF888888), const Color(0xFF303030)));
+    canvas.drawRect(Rect.fromLTWH(w * 0.474, h * 0.298, w * 0.052, h * 0.005),
+        f(const Color(0x55FFFFFF)));
 
-    // ── 3. Fore-end / pump (wood grain) ──────────────────────────────────
-    final pumpR = Rect.fromLTWH(w * 0.468, h * 0.470, w * 0.064, h * 0.070);
-    canvas.drawRRect(RRect.fromRectAndRadius(pumpR, const Radius.circular(4)),
-        mgh(pumpR, const Color(0xFF2E1204), const Color(0xFF7A4015), const Color(0xFF2E1204)));
-    // Wood grain lines
-    for (var i = 0; i < 4; i++) {
-      canvas.drawLine(
-        Offset(w * 0.471 + i * w * 0.012, h * 0.474),
-        Offset(w * 0.471 + i * w * 0.012, h * 0.536),
-        f(const Color(0xFF1E0A00))..strokeWidth = w * 0.003,
-      );
-    }
-    canvas.drawRect(Rect.fromLTWH(w * 0.468, h * 0.470, w * 0.064, h * 0.006),
-        f(const Color(0x33FFFFFF)));
-
-    // ── 4. Receiver / action ──────────────────────────────────────────────
-    final recR = Rect.fromLTWH(w * 0.454, h * 0.534, w * 0.092, h * 0.080);
-    canvas.drawRRect(RRect.fromRectAndRadius(recR, const Radius.circular(3)),
-        mgv(recR, const Color(0xFF1C1C1C), const Color(0xFF484848), const Color(0xFF282828)));
-    canvas.drawRect(Rect.fromLTWH(w * 0.454, h * 0.534, w * 0.092, h * 0.008),
+    // ── 3. Fore-end / pump — wood grip, noticeably wider ─────────────────
+    final pumpR = Rect.fromLTWH(w * 0.462, h * 0.434, w * 0.076, h * 0.092);
+    canvas.drawRRect(RRect.fromRectAndRadius(pumpR, const Radius.circular(5)),
+        mgh(pumpR, woodDark, woodMid, woodDark));
+    canvas.drawRect(Rect.fromLTWH(w * 0.462, h * 0.434, w * 0.076, h * 0.007),
         f(const Color(0x44FFFFFF)));
-    // Safety / bolt markers
-    canvas.drawCircle(Offset(w * 0.500, h * 0.568), h * 0.006,
-        f(const Color(0xFF0A0A0A)));
-
-    // ── 5. Trigger guard ─────────────────────────────────────────────────
-    canvas.drawArc(
-      Rect.fromLTWH(w * 0.475, h * 0.596, w * 0.050, h * 0.044),
-      -math.pi, math.pi, false,
-      f(const Color(0xFF0E0E0E))..style = PaintingStyle.stroke..strokeWidth = w * 0.004,
-    );
-    canvas.drawLine(Offset(w * 0.500, h * 0.603), Offset(w * 0.497, h * 0.630),
-        f(const Color(0xFF444444))..strokeWidth = w * 0.003);
-
-    // ── 6. Wood stock / pistol grip (extends off bottom) ─────────────────
-    final stockPath = Path()
-      ..moveTo(w * 0.454, h * 0.614)
-      ..lineTo(w * 0.546, h * 0.614)
-      ..lineTo(w * 0.552, h * 1.040)
-      ..lineTo(w * 0.448, h * 1.040)
-      ..close();
-    canvas.drawPath(stockPath,
-        Paint()..shader = Gradient.linear(
-            Offset(w * 0.454, 0), Offset(w * 0.546, 0),
-            [const Color(0xFF2C1004), const Color(0xFF6A3610), const Color(0xFF2C1004)],
-            [0.0, 0.5, 1.0]));
-    for (var i = 0; i < 3; i++) {
+    // Wood grain lines
+    for (var i = 0; i < 5; i++) {
       canvas.drawLine(
-        Offset(w * 0.460 + i * w * 0.024, h * 0.618),
-        Offset(w * 0.456 + i * w * 0.024, h * 1.040),
+        Offset(w * 0.465 + i * w * 0.012, h * 0.440),
+        Offset(w * 0.463 + i * w * 0.012, h * 0.522),
         f(const Color(0xFF1C0800))..strokeWidth = w * 0.003,
       );
     }
+
+    // ── 4. RECEIVER / ACTION — the dominant body block ─────────────────────
+    // Taller and wider than before — this is the gun's heart.
+    final recR = Rect.fromLTWH(w * 0.444, h * 0.520, w * 0.112, h * 0.130);
+    canvas.drawRRect(RRect.fromRectAndRadius(recR, const Radius.circular(4)),
+        mgv(recR, recDark, recMid, recDark));
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.520, w * 0.112, h * 0.008),
+        f(const Color(0x55FFFFFF)));
+    // Bolt handle marker
+    canvas.drawRect(Rect.fromLTWH(w * 0.528, h * 0.542, w * 0.022, h * 0.030),
+        f(const Color(0xFF383838)));
+    canvas.drawCircle(Offset(w * 0.498, h * 0.572), h * 0.008,
+        f(const Color(0xFF111111)));
+
+    // ── 5. Trigger guard — lighter for contrast ───────────────────────────
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.464, h * 0.626, w * 0.060, h * 0.056),
+      -math.pi, math.pi, false,
+      f(const Color(0xFF666666))..style = PaintingStyle.stroke..strokeWidth = w * 0.007,
+    );
+    canvas.drawLine(Offset(w * 0.494, h * 0.634), Offset(w * 0.491, h * 0.666),
+        f(const Color(0xFF555555))..strokeWidth = w * 0.006);
+
+    // ── 6. Wood stock / pistol grip — extends off bottom ─────────────────
+    final stockPath = Path()
+      ..moveTo(w * 0.446, h * 0.680)
+      ..lineTo(w * 0.552, h * 0.680)
+      ..lineTo(w * 0.558, h * 1.050)
+      ..lineTo(w * 0.442, h * 1.050)
+      ..close();
+    canvas.drawPath(stockPath,
+        Paint()..shader = Gradient.linear(
+            Offset(w * 0.446, 0), Offset(w * 0.552, 0),
+            [woodDark, woodMid, woodDark], [0.0, 0.5, 1.0]));
+    // Wood grain
+    for (var i = 0; i < 4; i++) {
+      canvas.drawLine(
+        Offset(w * 0.452 + i * w * 0.022, h * 0.686),
+        Offset(w * 0.448 + i * w * 0.022, h * 1.050),
+        f(const Color(0xFF1C0800))..strokeWidth = w * 0.003,
+      );
+    }
+    // Left bright bevel
+    canvas.drawLine(Offset(w * 0.446, h * 0.680), Offset(w * 0.442, h * 1.050),
+        f(const Color(0xFF6A3610))..strokeWidth = 2.5);
   }
 
   // ignore: long-method
@@ -909,147 +933,174 @@ class RaycastRenderer extends PositionComponent
       ..shader = Gradient.linear(
           r.topLeft, r.bottomLeft, [d, m, l], [0.0, 0.45, 1.0]);
 
-    // Gunmetal palette — bounce gets subtle dark teal, NOT neon blue
-    final Color bdark = bounce ? const Color(0xFF0A1820) : const Color(0xFF111111);
-    final Color bmid  = bounce ? const Color(0xFF152A36) : const Color(0xFF2C2C2C);
-    final Color blite = bounce ? const Color(0xFF1E3E4E) : const Color(0xFF484848);
-    final Color accent= bounce ? const Color(0xFF22D4FF) : const Color(0xFF666666);
+    // Palette — medium gray base, bounce = subtle dark teal
+    final Color shadow = bounce ? const Color(0xFF0A1820) : const Color(0xFF1A1A1A);
+    final Color body   = bounce ? const Color(0xFF1A4048) : const Color(0xFF4E4E4E);
+    final Color bright = bounce ? const Color(0xFF2A6070) : const Color(0xFF747474);
+    final Color accent = bounce ? const Color(0xFF22D4FF) : const Color(0xFF888888);
 
-    // ── 1. Front-sight post ───────────────────────────────────────────────
-    canvas.drawRect(Rect.fromLTWH(w * 0.496, h * 0.050, w * 0.008, h * 0.028),
-        f(const Color(0xFFCCCCCC)));
+    // ── 1. Muzzle brake / flash hider ─────────────────────────────────────
+    // 3 tabs at the very top — makes muzzle unmistakable
+    for (var i = 0; i < 3; i++) {
+      canvas.drawRect(
+        Rect.fromLTWH(w * 0.482 + i * w * 0.012, h * 0.026, w * 0.009, h * 0.030),
+        f(const Color(0xFF3A3A3A)));
+    }
+    canvas.drawRect(Rect.fromLTWH(w * 0.484, h * 0.040, w * 0.030, h * 0.018),
+        f(const Color(0xFF262626)));
 
-    // ── 2. Barrel — very thin, long ───────────────────────────────────────
-    final bx = w * 0.491;
-    final barR = Rect.fromLTWH(bx, h * 0.076, w * 0.018, h * 0.440);
+    // ── 2. Barrel — only the EXPOSED section above the handguard ─────────
+    // Real AR-15: ~6" exposed barrel = ~14% of total gun length shown.
+    // The rest is hidden inside the handguard.
+    final barR = Rect.fromLTWH(w * 0.488, h * 0.056, w * 0.022, h * 0.160);
     canvas.drawRect(barR,
-        mgh(barR, const Color(0xFF0E0E0E), const Color(0xFF3E3E3E), const Color(0xFF181818)));
-    // Bright specular left-edge line
-    canvas.drawLine(Offset(bx, h * 0.076), Offset(bx, h * 0.516),
-        f(const Color(0x55FFFFFF))..strokeWidth = 1.5);
-    // Bore hole at muzzle
-    canvas.drawCircle(Offset(w * 0.500, h * 0.086), h * 0.008,
-        f(const Color(0xFF050505)));
-    // For bounce: single faint teal edge — NO rings
+        mgh(barR, shadow, const Color(0xFF3A3A3A), shadow));
+    canvas.drawLine(Offset(w * 0.488, h * 0.056), Offset(w * 0.488, h * 0.216),
+        f(const Color(0x66FFFFFF))..strokeWidth = 1.5);
+    // Bore
+    canvas.drawCircle(Offset(w * 0.499, h * 0.066), h * 0.010,
+        f(const Color(0xFF060606)));
+    // Gas block (small lump ~40% down exposed barrel)
+    canvas.drawRect(Rect.fromLTWH(w * 0.484, h * 0.116, w * 0.030, h * 0.034),
+        f(const Color(0xFF303030)));
+    // Gas tube runs alongside barrel
+    canvas.drawRect(Rect.fromLTWH(w * 0.512, h * 0.120, w * 0.008, h * 0.100),
+        f(const Color(0xFF252525)));
+    // Bounce accent
     if (bounce) {
-      canvas.drawLine(
-          Offset(bx + w * 0.018, h * 0.076), Offset(bx + w * 0.018, h * 0.516),
+      canvas.drawLine(Offset(w * 0.510, h * 0.056), Offset(w * 0.510, h * 0.216),
           f(accent)..strokeWidth = 1.2..blendMode = BlendMode.plus
             ..color = accent.withAlpha(80));
     }
-    // Muzzle brake (3 small tabs)
-    for (var i = 0; i < 3; i++) {
-      canvas.drawRect(
-        Rect.fromLTWH(w * 0.487 + i * w * 0.009, h * 0.054, w * 0.006, h * 0.024),
-        f(const Color(0xFF383838)),
-      );
+    // Front sight post (A-frame)
+    canvas.drawRect(Rect.fromLTWH(w * 0.492, h * 0.044, w * 0.006, h * 0.016),
+        f(const Color(0xFFCCCCCC)));
+
+    // ── 3. HANDGUARD — THE DOMINANT MASS ──────────────────────────────────
+    // Real handguard covers ~60% of barrel. Make it wide and clearly rectangular.
+    final hgR = Rect.fromLTWH(w * 0.444, h * 0.214, w * 0.112, h * 0.322);
+    canvas.drawRRect(RRect.fromRectAndRadius(hgR, const Radius.circular(4)),
+        mgh(hgR, shadow, body, shadow));
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.214, w * 0.112, h * 0.008),
+        f(const Color(0x55FFFFFF)));
+    // M-LOK / ventilation slots (3 columns × 3 rows)
+    for (var col = 0; col < 3; col++) {
+      for (var row = 0; row < 4; row++) {
+        canvas.drawRect(
+          Rect.fromLTWH(
+              w * 0.450 + col * w * 0.028,
+              h * 0.256 + row * h * 0.058,
+              w * 0.014, h * 0.030),
+          f(const Color(0xFF0E0E0E)));
+      }
     }
+    // Bottom rail line
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.528, w * 0.112, h * 0.008),
+        f(const Color(0xFF141414)));
 
-    // ── 3. Gas tube (thin strip left of barrel) ───────────────────────────
-    canvas.drawRect(Rect.fromLTWH(w * 0.511, h * 0.078, w * 0.008, h * 0.280),
-        f(const Color(0xFF1E1E1E)));
-
-    // ── 4. Handguard (clearly wider than barrel) ──────────────────────────
-    final hgR = Rect.fromLTWH(w * 0.472, h * 0.390, w * 0.056, h * 0.118);
-    canvas.drawRRect(RRect.fromRectAndRadius(hgR, const Radius.circular(3)),
-        mgh(hgR, bdark, bmid, bdark));
-    // Ventilation slots
-    for (var i = 0; i < 3; i++) {
-      canvas.drawRect(
-        Rect.fromLTWH(w * 0.476 + i * w * 0.014, h * 0.406, w * 0.008, h * 0.012),
-        f(const Color(0xFF080808)),
-      );
-    }
-    canvas.drawRect(Rect.fromLTWH(w * 0.472, h * 0.390, w * 0.056, h * 0.006),
-        f(const Color(0x33FFFFFF)));
-
-    // ── 5. Optic / scope (sits above upper receiver) ──────────────────────
+    // ── 4. Optic / carry handle ────────────────────────────────────────────
     if (!bounce) {
-      // Carry handle / iron sights rail
-      final chR = Rect.fromLTWH(w * 0.456, h * 0.498, w * 0.088, h * 0.036);
+      // Carry handle (A2-style flat-top rail look)
+      final chR = Rect.fromLTWH(w * 0.446, h * 0.530, w * 0.140, h * 0.040);
       canvas.drawRect(chR,
-          mgh(chR, const Color(0xFF181818), const Color(0xFF303030), const Color(0xFF181818)));
-      canvas.drawRect(Rect.fromLTWH(w * 0.456, h * 0.498, w * 0.088, h * 0.005),
-          f(const Color(0x33FFFFFF)));
-      // Sight notch
-      canvas.drawRect(Rect.fromLTWH(w * 0.537, h * 0.499, w * 0.007, h * 0.012),
+          mgh(chR, shadow, bright, shadow));
+      canvas.drawRect(Rect.fromLTWH(w * 0.446, h * 0.530, w * 0.140, h * 0.005),
+          f(const Color(0x44FFFFFF)));
+      // Rear aperture
+      canvas.drawRect(Rect.fromLTWH(w * 0.549, h * 0.534, w * 0.008, h * 0.015),
           f(const Color(0xFF111111)));
     } else {
-      // Scope tube — dark body, barely-glowing rear lens
-      final scopeR = Rect.fromLTWH(w * 0.448, h * 0.490, w * 0.104, h * 0.044);
-      canvas.drawRRect(RRect.fromRectAndRadius(scopeR, const Radius.circular(4)),
-          mgh(scopeR, const Color(0xFF080E14), const Color(0xFF122030), const Color(0xFF080E14)));
-      // Lens — very subtle, not a glowing orb
-      canvas.drawOval(Rect.fromLTWH(w * 0.452, h * 0.495, w * 0.030, h * 0.032),
-          f(const Color(0xFF0A1420)));
-      canvas.drawOval(Rect.fromLTWH(w * 0.456, h * 0.499, w * 0.022, h * 0.024),
-          f(accent)..blendMode = BlendMode.plus..color = accent.withAlpha(40));
+      // Scope
+      final scopeR = Rect.fromLTWH(w * 0.438, h * 0.526, w * 0.124, h * 0.050);
+      canvas.drawRRect(RRect.fromRectAndRadius(scopeR, const Radius.circular(5)),
+          mgh(scopeR, shadow, const Color(0xFF1A3040), shadow));
+      // Rear lens with subtle glow
+      canvas.drawOval(Rect.fromLTWH(w * 0.442, h * 0.532, w * 0.036, h * 0.038),
+          f(const Color(0xFF0A1824)));
+      canvas.drawOval(Rect.fromLTWH(w * 0.446, h * 0.536, w * 0.028, h * 0.030),
+          f(accent)..blendMode = BlendMode.plus..color = accent.withAlpha(50));
+      // Elevation/windage turrets
+      canvas.drawRect(Rect.fromLTWH(w * 0.496, h * 0.524, w * 0.014, h * 0.012),
+          f(const Color(0xFF303030)));
     }
 
-    // ── 6. Upper receiver ─────────────────────────────────────────────────
-    final urR = Rect.fromLTWH(w * 0.458, h * 0.528, w * 0.130, h * 0.096);
-    canvas.drawRect(urR, mgv(urR, bmid, blite, bmid));
-    canvas.drawRect(Rect.fromLTWH(w * 0.458, h * 0.528, w * 0.130, h * 0.006),
+    // ── 5. Upper receiver ─────────────────────────────────────────────────
+    final urR = Rect.fromLTWH(w * 0.444, h * 0.564, w * 0.148, h * 0.090);
+    canvas.drawRect(urR, mgv(urR, shadow, bright, shadow));
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.564, w * 0.148, h * 0.006),
         f(const Color(0x44FFFFFF)));
-    // Ejection port
-    canvas.drawRect(Rect.fromLTWH(w * 0.542, h * 0.540, w * 0.046, h * 0.054),
+    // Ejection port — large and clear
+    canvas.drawRect(Rect.fromLTWH(w * 0.546, h * 0.578, w * 0.044, h * 0.056),
         f(const Color(0xFF080808)));
-    // Charging handle nub
-    canvas.drawRect(Rect.fromLTWH(w * 0.458, h * 0.532, w * 0.014, h * 0.038),
-        f(const Color(0xFF1A1A1A)));
+    canvas.drawRect(Rect.fromLTWH(w * 0.550, h * 0.590, w * 0.028, h * 0.024),
+        f(const Color(0xFF7A5510)));
+    // Charging handle
+    canvas.drawRect(Rect.fromLTWH(w * 0.444, h * 0.568, w * 0.016, h * 0.044),
+        f(const Color(0xFF282828)));
     if (bounce) {
-      canvas.drawLine(Offset(w * 0.459, h * 0.530), Offset(w * 0.587, h * 0.530),
-          f(accent)..strokeWidth = 1.0..blendMode = BlendMode.plus
-            ..color = accent.withAlpha(50));
+      canvas.drawLine(Offset(w * 0.445, h * 0.565), Offset(w * 0.591, h * 0.565),
+          f(accent)..strokeWidth = 1.2..blendMode = BlendMode.plus
+            ..color = accent.withAlpha(60));
     }
 
-    // ── 7. Lower receiver + magazine ─────────────────────────────────────
-    final lrR = Rect.fromLTWH(w * 0.464, h * 0.618, w * 0.124, h * 0.084);
-    canvas.drawRect(lrR, mgv(lrR, bdark, bmid, bdark));
-    // Magazine well
+    // ── 6. Lower receiver + mag well ───────────────────────────────────────
+    final lrR = Rect.fromLTWH(w * 0.450, h * 0.648, w * 0.136, h * 0.078);
+    canvas.drawRect(lrR, mgv(lrR, shadow, body, shadow));
+    // Magazine — long curved box, most iconic rifle feature
     canvas.drawRRect(
-      RRect.fromLTRBAndCorners(w * 0.476, h * 0.660, w * 0.524, h * 0.870,
-          bottomLeft: const Radius.circular(4), bottomRight: const Radius.circular(4)),
-      mgv(Rect.fromLTWH(w * 0.476, h * 0.660, w * 0.048, h * 0.210),
-          bmid, blite, bmid),
+      RRect.fromLTRBAndCorners(
+          w * 0.469, h * 0.704, w * 0.529, h * 0.930,
+          bottomLeft: const Radius.circular(6), bottomRight: const Radius.circular(6)),
+      mgv(Rect.fromLTWH(w * 0.469, h * 0.704, w * 0.060, h * 0.226),
+          shadow, bright, shadow),
     );
-    canvas.drawRect(Rect.fromLTWH(w * 0.476, h * 0.660, w * 0.048, h * 0.008),
-        f(bounce ? accent.withAlpha(160) : const Color(0xFF555555)));
-    canvas.drawLine(Offset(w * 0.500, h * 0.668), Offset(w * 0.500, h * 0.870),
-        f(const Color(0xFF0C0C0C))..strokeWidth = w * 0.003);
+    // Magazine top clamp
+    canvas.drawRect(Rect.fromLTWH(w * 0.469, h * 0.704, w * 0.060, h * 0.010),
+        f(bounce ? accent.withAlpha(180) : const Color(0xFF606060)));
+    // Magazine center seam
+    canvas.drawLine(Offset(w * 0.499, h * 0.712), Offset(w * 0.499, h * 0.928),
+        f(const Color(0xFF101010))..strokeWidth = w * 0.004);
 
-    // ── 8. Pistol grip ────────────────────────────────────────────────────
-    canvas.drawRRect(
-      RRect.fromLTRBAndCorners(w * 0.528, h * 0.628, w * 0.556, h * 0.820,
-          bottomLeft: const Radius.circular(5), bottomRight: const Radius.circular(5)),
-      f(bdark),
-    );
-    for (var gy = 0; gy < 3; gy++) {
+    // ── 7. Pistol grip ────────────────────────────────────────────────────
+    final pgR = RRect.fromLTRBAndCorners(
+        w * 0.554, h * 0.654, w * 0.590, h * 0.860,
+        bottomLeft: const Radius.circular(6), bottomRight: const Radius.circular(6));
+    canvas.drawRRect(pgR, f(shadow));
+    for (var i = 0; i < 4; i++) {
       canvas.drawLine(
-        Offset(w * 0.532, h * 0.648 + gy * h * 0.036),
-        Offset(w * 0.552, h * 0.648 + gy * h * 0.036),
-        f(const Color(0xFF1E1E1E))..strokeWidth = h * 0.006,
+        Offset(w * 0.558, h * 0.672 + i * h * 0.038),
+        Offset(w * 0.586, h * 0.672 + i * h * 0.038),
+        f(const Color(0xFF222222))..strokeWidth = h * 0.008,
       );
     }
+    canvas.drawLine(Offset(w * 0.554, h * 0.654), Offset(w * 0.554, h * 0.860),
+        f(body)..strokeWidth = 2.5);
 
-    // ── 9. Trigger guard + trigger ────────────────────────────────────────
+    // ── 8. Trigger guard ─────────────────────────────────────────────────
     canvas.drawArc(
-      Rect.fromLTWH(w * 0.480, h * 0.694, w * 0.056, h * 0.048),
+      Rect.fromLTWH(w * 0.480, h * 0.718, w * 0.066, h * 0.056),
       -math.pi, math.pi, false,
-      f(const Color(0xFF0A0A0A))..style = PaintingStyle.stroke..strokeWidth = w * 0.005,
+      f(const Color(0xFF606060))..style = PaintingStyle.stroke..strokeWidth = w * 0.007,
     );
-    canvas.drawLine(Offset(w * 0.508, h * 0.700), Offset(w * 0.505, h * 0.730),
-        f(const Color(0xFF3A3A3A))..strokeWidth = w * 0.004);
+    canvas.drawLine(Offset(w * 0.514, h * 0.726), Offset(w * 0.510, h * 0.760),
+        f(const Color(0xFF555555))..strokeWidth = w * 0.006);
 
-    // ── 10. Stock (extends LEFT — opposite from grip) ─────────────────────
-    final stR = Rect.fromLTWH(w * 0.386, h * 0.536, w * 0.082, h * 0.078);
+    // ── 9. Buttstock — extends LEFT (opposite side from handguard) ────────
+    final stR = Rect.fromLTWH(w * 0.302, h * 0.558, w * 0.150, h * 0.088);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(stR, const Radius.circular(4)),
-      mgv(stR, bdark, bmid, bdark),
+      RRect.fromRectAndRadius(stR, const Radius.circular(5)),
+      mgv(stR, shadow, body, shadow),
     );
+    // Buffer tube (thin cylinder connecting stock to receiver)
+    canvas.drawRect(Rect.fromLTWH(w * 0.370, h * 0.576, w * 0.076, h * 0.020),
+        f(const Color(0xFF282828)));
+    // Stock cheekweld
+    canvas.drawRect(Rect.fromLTWH(w * 0.304, h * 0.558, w * 0.146, h * 0.028),
+        f(body));
+    canvas.drawRect(Rect.fromLTWH(w * 0.304, h * 0.558, w * 0.146, h * 0.005),
+        f(const Color(0x44FFFFFF)));
     if (bounce) {
-      canvas.drawRect(
-          Rect.fromLTWH(w * 0.387, h * 0.554, w * 0.080, h * 0.008),
+      canvas.drawRect(Rect.fromLTWH(w * 0.304, h * 0.578, w * 0.146, h * 0.010),
           f(accent)..color = accent.withAlpha(60));
     }
   }
