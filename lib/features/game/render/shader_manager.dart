@@ -67,9 +67,10 @@ class ShaderManager {
     shader.setFloat(7, pitch);
 
     // Set Ambient (vec4) - Indices 8, 9, 10, 11
-    shader.setFloat(8, 0.2);
-    shader.setFloat(9, 0.2);
-    shader.setFloat(10, 0.3);
+    // Brightness: 5/10 (0.5 normalized) → RGB all 0.5 for neutral gray lighting
+    shader.setFloat(8, 0.5);
+    shader.setFloat(9, 0.5);
+    shader.setFloat(10, 0.5);
     shader.setFloat(11, 0); // Padding
 
     // Set Fog Distance (float) - Index 12

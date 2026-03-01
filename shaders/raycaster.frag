@@ -193,7 +193,7 @@ void main() {
         );
 
         vec4 texColor  = texture(uAtlas, atlasUV);
-        vec3 lighting  = vec3(0.08, 0.10, 0.13);
+        vec3 lighting  = uAmbientLight.rgb;
 
         for (int i = 0; i < MAX_LIGHTS; i++) {
             if (i >= int(uLightingParams.x)) break;
@@ -275,7 +275,7 @@ void main() {
                 if (isExit) texColor.rgb *= vec3(1.3, 1.0, 0.3);
 
                 // Lighting
-                vec3 lighting = vec3(0.08, 0.10, 0.13);
+                vec3 lighting = uAmbientLight.rgb;
 
                 vec2 hitPos;
                 if (side == 0.0) {

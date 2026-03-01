@@ -1,14 +1,26 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloc_test/bloc_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:raycasting_game/core/audio/audio_service.dart';
 import 'package:raycasting_game/features/game/weapon/bloc/weapon_bloc.dart';
 import 'package:raycasting_game/features/game/weapon/models/weapon.dart';
+
+// Mock AudioService to avoid playing actual sounds during tests
+class MockAudioService extends Mock implements AudioService {}
 
 void main() {
   group('WeaponBloc', () {
     late WeaponBloc weaponBloc;
+    late MockAudioService mockAudioService;
 
     setUp(() {
-      weaponBloc = WeaponBloc();
+      mockAudioService = MockAudioService();
+
+      // Mock the playSFX method to prevent actual audio playback
+      when(() => mockAudioService.playSFX(any(), volume: any(named: 'volume')))
+          .thenAnswer((_) async {});
+
+      weaponBloc = WeaponBloc(audioService: mockAudioService);
     });
 
     tearDown(() {
@@ -30,6 +42,13 @@ void main() {
           (state) => state.currentAmmo == 11 && state.lastFireTime != null,
         ),
       ],
+      verify: (bloc) {
+        // Verify that playSFX was called with the pistol fire sound
+        verify(() => mockAudioService.playSFX(
+          Weapon.pistol.fireSound,
+          volume: 0.8,
+        )).called(1);
+      },
     );
 
     blocTest<WeaponBloc, WeaponState>(
@@ -38,6 +57,13 @@ void main() {
       seed: () => const WeaponState(currentAmmo: 0),
       act: (bloc) => bloc.add(const WeaponFired()),
       expect: () => const <WeaponState>[],
+      verify: (bloc) {
+        // Verify that empty clip sound was played
+        verify(() => mockAudioService.playSFX(
+          'audio/weapons/empty_clip.wav',
+          volume: 0.6,
+        )).called(1);
+      },
     );
 
     test('WeaponFired respects cooldown', () async {
@@ -70,6 +96,13 @@ void main() {
       expect: () => [
         predicate<WeaponState>((state) => state.currentAmmo == 12),
       ],
+      verify: (bloc) {
+        // Verify that reload sound was played
+        verify(() => mockAudioService.playSFX(
+          Weapon.pistol.reloadSound,
+          volume: 0.7,
+        )).called(1);
+      },
     );
 
     blocTest<WeaponBloc, WeaponState>(
@@ -83,6 +116,13 @@ void main() {
               state.currentAmmo == 8, // Shotgun max ammo
         ),
       ],
+      verify: (bloc) {
+        // Verify that weapon switch sound was played
+        verify(() => mockAudioService.playSFX(
+          'audio/weapons/weapon_switch.wav',
+          volume: 0.6,
+        )).called(1);
+      },
     );
   });
 }

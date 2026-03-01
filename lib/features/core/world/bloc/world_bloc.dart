@@ -14,6 +14,7 @@ import 'package:raycasting_game/features/core/world/models/game_map.dart';
 import 'package:raycasting_game/features/core/world/models/light_source.dart';
 import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
 import 'package:raycasting_game/features/game/ai/systems/ai_system.dart';
+import 'package:raycasting_game/features/game/ai/systems/dijkstra_map.dart';
 import 'package:raycasting_game/features/game/systems/animation_system.dart';
 import 'package:raycasting_game/features/core/ecs/components/animation_component.dart';
 
@@ -70,6 +71,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
 
   final AISystem _aiSystem = AISystem();
   final AnimationSystem _animationSystem = AnimationSystem();
+  final DijkstraMap _dijkstraMap = DijkstraMap();
+
+  // OPT: Dijkstra recompute at 10 Hz — path recalculated every 100ms.
+  // Between recomputes, enemies continue using the cached gradient.
+  double _dijkstraAccumulator = 0.0;
+  static const double _dijkstraInterval = 1.0 / 10.0; // 100 ms
+
+  /// Public read-only access to the Hive Mind navigation grid.
+  /// Used by [RaycastRenderer] for O(1) sprite visibility checks.
+  /// Returns null before the first [WorldInitialized] completes.
+  DijkstraMap? get dijkstraMap =>
+      state.status == WorldStatus.active ? _dijkstraMap : null;
 
   bool _isInitializing = false;
 
@@ -194,6 +207,11 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         playerDirection: 0,
       ),
     );
+
+    _dijkstraMap.initialize(width, height);
+    // Seed an initial compute so first enemies already have a path.
+    _dijkstraMap.recompute(spawn, map);
+    _dijkstraAccumulator = 0.0;
 
     _isInitializing = false;
   }
@@ -541,6 +559,15 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         })
         .toList(growable: false);
 
+    // OPT: [HIVE MIND] Dijkstra Map recompute — 10 Hz gate.
+    // Single BFS pass per 100ms. ALL enemies share this result.
+    // Costo: O(tiles) cada 100ms en lugar de O(enemies * 50 DDA steps) por frame.
+    _dijkstraAccumulator += event.dt;
+    if (_dijkstraAccumulator >= _dijkstraInterval && state.map != null) {
+      _dijkstraAccumulator -= _dijkstraInterval;
+      _dijkstraMap.recompute(state.effectivePosition, state.map!);
+    }
+
     // OPT: AI time-slicing — run full FSM + LOS at 20 Hz.
     // Between ticks, apply the cached velocity for smooth 60 Hz movement.
     _aiAccumulator += event.dt;
@@ -554,6 +581,7 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
             state.effectivePosition,
             state.map,
             now: now,
+            dijkstraMap: _dijkstraMap,
           )
         : _applyVelocityOnly(event.dt, liveEntities);
 

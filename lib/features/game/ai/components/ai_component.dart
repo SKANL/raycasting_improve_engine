@@ -5,20 +5,20 @@ import 'package:vector_math/vector_math_64.dart' as v64;
 
 /// Categorises the enemy archetype — used for sprint variety in wave spawning.
 enum EnemyType {
-  grunt,    // Fast melee bruiser
-  shooter,  // Mid-range ranged attacker
+  grunt, // Fast melee bruiser
+  shooter, // Mid-range ranged attacker
   guardian, // Slow long-range hitscan sniper
 }
 
 /// Extended AI states for Doom-like behavior
 enum AIState {
-  idle,        // Waiting for player (LOS check each tick)
+  idle, // Waiting for player (LOS check each tick)
   investigate, // Heard a sound — moving to check it out (no LOS yet)
-  chase,       // Has LOS or hunting last-known position
-  attack,      // In range: firing or melee
-  pain,        // Stunned briefly after taking damage
-  die,         // Death animation playing
-  patrol,      // Wander/waypoint patrol (legacy)
+  chase, // Has LOS or hunting last-known position
+  attack, // In range: firing or melee
+  pain, // Stunned briefly after taking damage
+  die, // Death animation playing
+  patrol, // Wander/waypoint patrol (legacy)
 }
 
 /// How the enemy deals damage when in [AIState.attack]
@@ -46,7 +46,7 @@ class AIComponent extends GameComponent {
     this.investigatePosition,
     this.detectionRange = 10,
     this.attackRange = 1.5,
-    this.moveSpeed = 2,
+    this.moveSpeed = 1,
     this.meleeDamage = 15,
     this.projectileDamage = 20,
     this.projectileSpeed = 8.0,
@@ -126,10 +126,10 @@ class AIComponent extends GameComponent {
     attackType: AIAttackType.melee,
     detectionRange: 10,
     attackRange: 1.3,
-    moveSpeed: 2.8,    // Hard to outrun, but not impossible
-    meleeDamage: 10,   // ~10 hits to die — fair vs. 100 HP
+    moveSpeed: 1.4, // Hard to outrun, but not impossible
+    meleeDamage: 10, // ~10 hits to die — fair vs. 100 HP
     attackCooldown: 0.9,
-    painChance: 0.55,  // Staggers often — player can stop the rush if accurate
+    painChance: 0.55, // Staggers often — player can stop the rush if accurate
     reactionTime: 0.4,
   );
 
@@ -140,10 +140,10 @@ class AIComponent extends GameComponent {
     attackType: AIAttackType.projectile,
     detectionRange: 14,
     attackRange: 10.0,
-    moveSpeed: 1.6,
-    projectileDamage: 14,  // Balanced: ~7 hits to die
-    projectileSpeed: 6.5,  // Slow enough to dodge with strafing
-    attackCooldown: 1.8,   // Long cooldown → predictable rhythm
+    moveSpeed: 0.8,
+    projectileDamage: 14, // Balanced: ~7 hits to die
+    projectileSpeed: 6.5, // Slow enough to dodge with strafing
+    attackCooldown: 1.8, // Long cooldown → predictable rhythm
     painChance: 0.35,
     reactionTime: 0.6,
   );
@@ -155,11 +155,11 @@ class AIComponent extends GameComponent {
     attackType: AIAttackType.hitscan,
     detectionRange: 20,
     attackRange: 18.0,
-    moveSpeed: 1.0,         // Slow — player can close the gap
-    projectileDamage: 22,   // Dangerous but not lethal in one hit (100 HP player)
-    attackCooldown: 2.5,    // Long cooldown → player has time to find cover
-    painChance: 0.12,       // Hard to stagger — toughest enemy
-    reactionTime: 0.8,      // Long reaction time — telegraphs the attack
+    moveSpeed: 0.5, // Slow — player can close the gap
+    projectileDamage: 22, // Dangerous but not lethal in one hit (100 HP player)
+    attackCooldown: 2.5, // Long cooldown → player has time to find cover
+    painChance: 0.12, // Hard to stagger — toughest enemy
+    reactionTime: 0.8, // Long reaction time — telegraphs the attack
   );
 
   // ─── copyWith ─────────────────────────────────────────────────────────────

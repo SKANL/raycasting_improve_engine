@@ -1,5 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:raycasting_game/core/audio/audio_service.dart';
 import 'package:raycasting_game/core/logging/log_service.dart';
 import 'package:raycasting_game/features/game/weapon/models/ammo_type.dart';
 import 'package:raycasting_game/features/game/weapon/models/weapon.dart';
@@ -9,18 +10,26 @@ part 'weapon_state.dart';
 
 /// Manages weapon state and firing logic
 class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
-  WeaponBloc() : super(const WeaponState()) {
+  WeaponBloc({AudioService? audioService})
+      : _audioService = audioService ?? AudioService(),
+        super(const WeaponState()) {
     on<WeaponFired>(_onWeaponFired);
     on<WeaponReloaded>(_onWeaponReloaded);
     on<WeaponSwitched>(_onWeaponSwitched);
     on<AmmoAdded>(_onAmmoAdded);
   }
 
+  final AudioService _audioService;
+
   void _onWeaponFired(WeaponFired event, Emitter<WeaponState> emit) {
     if (!state.canFire) {
       LogService.warning('WEAPON', 'FIRE_BLOCKED', {
         'reason': state.currentAmmo <= 0 ? 'no_ammo' : 'cooldown',
       });
+      // Play empty clip sound if ammo is empty
+      if (state.currentAmmo <= 0) {
+        _audioService.playSFX('audio/weapons/empty_clip.wav', volume: 0.6);
+      }
       return;
     }
 
@@ -28,6 +37,9 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
       'weapon': state.currentWeapon.id,
       'ammo_remaining': state.currentAmmo - 1,
     });
+
+    // Play fire sound
+    _audioService.playSFX(state.currentWeapon.fireSound, volume: 0.8);
 
     emit(
       state.copyWith(
@@ -42,6 +54,9 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
       'weapon': state.currentWeapon.id,
     });
 
+    // Play reload sound
+    _audioService.playSFX(state.currentWeapon.reloadSound, volume: 0.7);
+
     emit(
       state.copyWith(
         currentAmmo: state.currentWeapon.maxAmmo,
@@ -54,6 +69,9 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
       'from': state.currentWeapon.id,
       'to': event.weapon.id,
     });
+
+    // Play weapon switch sound
+    _audioService.playSFX('audio/weapons/weapon_switch.wav', volume: 0.6);
 
     emit(
       WeaponState(

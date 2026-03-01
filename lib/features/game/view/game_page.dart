@@ -1,6 +1,7 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:raycasting_game/core/audio/audio_service.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
 import 'package:raycasting_game/features/core/level/view/victory_screen.dart';
@@ -23,7 +24,7 @@ class GamePage extends StatelessWidget {
         BlocProvider(create: (_) => WorldBloc()),
         BlocProvider(create: (_) => InputBloc()),
         BlocProvider(create: (_) => PerspectiveBloc()),
-        BlocProvider(create: (_) => WeaponBloc()),
+        BlocProvider(create: (_) => WeaponBloc(audioService: AudioService())),
         BlocProvider(
           create: (context) => GameBloc(
             worldBloc: context.read<WorldBloc>(),

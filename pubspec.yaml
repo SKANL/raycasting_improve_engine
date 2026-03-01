@@ -47,6 +47,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/audio/
+    - assets/audio/musica_fondo/
     - assets/images/
     - assets/video/
     - assets/licenses/poppins/

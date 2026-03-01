@@ -17,6 +17,8 @@ class Weapon extends Equatable {
     this.projectileSpeed = 12.0,
     this.maxBounces = 0,
     this.muzzleFlashTextureIndex = 0,
+    this.fireSound = 'audio/weapons/pistol_fire.wav',
+    this.reloadSound = 'audio/weapons/reload.wav',
   });
 
   /// Unique weapon identifier
@@ -58,6 +60,12 @@ class Weapon extends Equatable {
   /// Texture atlas index for muzzle flash particle
   final int muzzleFlashTextureIndex;
 
+  /// Fire sound asset path (relative to assets/)
+  final String fireSound;
+
+  /// Reload sound asset path (relative to assets/)
+  final String reloadSound;
+
   /// Time between shots in seconds
   double get cooldown => 1.0 / fireRate;
 
@@ -75,6 +83,8 @@ class Weapon extends Equatable {
     pellets,
     projectileSpeed,
     maxBounces,
+    fireSound,
+    reloadSound,
   ];
 
   // ─── Predefined Weapons ───────────────────────────────────────────────────
@@ -88,6 +98,8 @@ class Weapon extends Equatable {
     fireRate: 2.0,
     range: 20.0,
     muzzleFlashTextureIndex: 0,
+    fireSound: 'audio/weapons/pistol_fire.wav',
+    reloadSound: 'audio/weapons/reload.wav',
   );
 
   /// Wide spread, close-range devastation. 7 pellets per shot.
@@ -101,6 +113,8 @@ class Weapon extends Equatable {
     pellets: 7,
     spreadAngle: 0.12, // ~7 degrees half-angle
     muzzleFlashTextureIndex: 1,
+    fireSound: 'audio/weapons/shotgun_fire.wav',
+    reloadSound: 'audio/weapons/reload.wav',
   );
 
   /// Fast automatic hitscan. Low spread, medium damage.
@@ -113,6 +127,8 @@ class Weapon extends Equatable {
     range: 30.0,
     spreadAngle: 0.02,
     muzzleFlashTextureIndex: 2,
+    fireSound: 'audio/weapons/pistol_fire.wav', // Using pistol sound as fallback
+    reloadSound: 'audio/weapons/reload.wav',
   );
 
   /// Fires a physical projectile that bounces off walls up to 4 times.
@@ -128,6 +144,8 @@ class Weapon extends Equatable {
     projectileSpeed: 20.0,
     maxBounces: 4,
     muzzleFlashTextureIndex: 3,
+    fireSound: 'audio/weapons/pistol_fire.wav',
+    reloadSound: 'audio/weapons/reload.wav',
   );
 
   /// Rapid-fire bouncing rifle. Bullets ricochet 6 times.
@@ -143,5 +161,7 @@ class Weapon extends Equatable {
     projectileSpeed: 25.0,
     maxBounces: 6,
     muzzleFlashTextureIndex: 4,
+    fireSound: 'audio/weapons/pistol_fire.wav',
+    reloadSound: 'audio/weapons/reload.wav',
   );
 }

@@ -11,6 +11,7 @@ import 'package:flame/input.dart';
 import 'package:flutter/foundation.dart'; // For defaultTargetPlatform
 import 'dart:io'; // For Platform check
 
+import 'package:raycasting_game/core/audio/audio_service.dart';
 import 'package:raycasting_game/features/core/input/action_mapper.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/input/models/game_action.dart';
@@ -63,6 +64,13 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   Future<void> onLoad() async {
     await ShaderManager.load();
     await super.onLoad();
+
+    // Initialize Audio Service and start background music
+    await AudioService().init();
+    await AudioService().playBackgroundMusic(
+      'audio/musica_fondo/Vertical_Layering.mp3',
+      fadeInDuration: 1500,
+    );
 
     // World is already initialized by the LoadingScreen before this mounts.
 
@@ -137,6 +145,10 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     // Cancel the stream subscription to avoid rendering on a disposed EngineFlutterView
     _worldEffectsSub?.cancel();
     _worldEffectsSub = null;
+
+    // Stop background music and cleanup audio resources
+    AudioService().stopBackgroundMusic(fadeOutDuration: 300).ignore();
+
     super.onDetach();
   }
 

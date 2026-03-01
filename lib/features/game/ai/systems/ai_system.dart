@@ -6,6 +6,7 @@ import 'package:raycasting_game/features/core/ecs/components/transform_component
 import 'package:raycasting_game/features/core/world/models/game_entity.dart';
 import 'package:raycasting_game/features/core/world/models/game_map.dart';
 import 'package:raycasting_game/features/game/ai/components/ai_component.dart';
+import 'package:raycasting_game/features/game/ai/systems/dijkstra_map.dart';
 import 'package:raycasting_game/features/game/models/projectile.dart';
 import 'package:raycasting_game/features/game/systems/physics_system.dart';
 import 'package:raycasting_game/features/game/weapon/models/ammo_type.dart';
@@ -35,13 +36,18 @@ class AIUpdateResult {
 class AISystem {
   static const _uuid = Uuid();
 
-  /// Update all AI entities and return list of updates to apply
+  /// Update all AI entities and return list of updates to apply.
+  ///
+  /// [dijkstraMap] — when provided, all expensive per-entity Raycasts
+  /// (hasLOS, pathfinding) are replaced by O(1) array reads from the
+  /// shared Hive Mind navigation grid.
   List<AIUpdateResult> update(
     double dt,
     List<GameEntity> entities,
     v64.Vector2 playerPosition,
     GameMap? map, {
     DateTime? now,
+    DijkstraMap? dijkstraMap,
   }) {
     // OPT: Call DateTime.now() ONCE for all entities instead of O(n) times.
     final nowTime = now ?? DateTime.now();
@@ -62,6 +68,7 @@ class AISystem {
         map,
         entities,
         nowTime,
+        dijkstraMap: dijkstraMap,
       );
       if (result != null) {
         updates.add(result);
@@ -79,8 +86,9 @@ class AISystem {
     v64.Vector2 playerPosition,
     GameMap? map,
     List<GameEntity> allEntities,
-    DateTime now,  // OPT: injected — not re-created per entity
-  ) {
+    DateTime now, { // OPT: injected — not re-created per entity
+    DijkstraMap? dijkstraMap,
+  }) {
     // --- DEATH OPTIMIZATION ---
     // Dead entities should NOT compute Line-of-sight nor Math Distances.
     // They are just visual corpses fading/animating.
@@ -111,11 +119,19 @@ class AISystem {
     final distSq = (playerPosition - transform.position).length2;
     // Full distance is still needed for other range comparisons (attack, contact).
     final distToPlayer = math.sqrt(distSq);
-    final hasLOS = PhysicsSystem.hasLineOfSight(
-      transform.position,
-      playerPosition,
-      map,
-    );
+
+    // [HIVE MIND OPT]: Use DijkstraMap visibility grid instead of per-entity
+    // DDA Raycast. isCellVisible() is O(1) array read vs. O(50 steps) DDA.
+    // Falls back to PhysicsSystem.hasLineOfSight() when no hive map is present.
+    final ex = transform.position.x.floor();
+    final ey = transform.position.y.floor();
+    final hasLOS = dijkstraMap != null
+        ? dijkstraMap.isCellVisible(ex, ey)
+        : PhysicsSystem.hasLineOfSight(
+            transform.position,
+            playerPosition,
+            map,
+          );
 
     var aiChanged = false;
     var transformChanged = false;
@@ -166,9 +182,27 @@ class AISystem {
             );
             aiChanged = true;
           } else {
+            // [HIVE MIND]: Use dijkstra gradient when available for wall-aware
+            // navigation. Fall back to direct _moveToward() if no map.
+            final v64.Vector2 investigateTarget;
+            if (dijkstraMap != null) {
+              final grad = dijkstraMap.bestDirection(transform.position);
+              // When close to investigate point, switch to direct target.
+              investigateTarget = grad.length2 > 0.01
+                  ? transform.position + grad
+                  : ai.investigatePosition!;
+            } else {
+              investigateTarget = ai.investigatePosition!;
+            }
             final (movedTransform, velocity) = _moveToward(
-              dt, newAI, entity.id, transform, ai.investigatePosition!,
-              map, allEntities, playerPosition,
+              dt,
+              newAI,
+              entity.id,
+              transform,
+              investigateTarget,
+              map,
+              allEntities,
+              playerPosition,
             );
             newTransform = movedTransform;
             newAI = newAI.copyWith(cachedMoveVelocity: velocity);
@@ -177,8 +211,7 @@ class AISystem {
           }
         } else {
           // No position set (guard against bad state)
-          newAI = ai.copyWith(
-              currentState: AIState.idle, lastStateChange: now);
+          newAI = ai.copyWith(currentState: AIState.idle, lastStateChange: now);
           aiChanged = true;
         }
         break;
@@ -231,12 +264,24 @@ class AISystem {
           );
           aiChanged = true;
         } else {
+          // [HIVE MIND OPT]: Use Dijkstra gradient for wall-aware pathfinding.
+          // bestDirection() is O(1): reads 4 tiles from pre-built cost grid.
+          // Falls back to direct vector when no hive map is available.
+          final v64.Vector2 chaseTarget;
+          if (dijkstraMap != null) {
+            final grad = dijkstraMap.bestDirection(transform.position);
+            chaseTarget = grad.length2 > 0.01
+                ? transform.position + grad
+                : target;
+          } else {
+            chaseTarget = target;
+          }
           final (movedTransform, velocity) = _moveToward(
             dt,
             newAI,
             entity.id,
             transform,
-            target,
+            chaseTarget,
             map,
             allEntities,
             playerPosition,
@@ -265,16 +310,23 @@ class AISystem {
           final toPlayer = (playerPosition - transform.position).normalized();
           final strafePhase = (timeInState / 1.5).floor();
           // XOR with hash so different enemies strafe in opposite directions
-          final strafeSign =
-              (entity.id.hashCode ^ strafePhase) % 2 == 0 ? 1.0 : -1.0;
+          final strafeSign = (entity.id.hashCode ^ strafePhase) % 2 == 0
+              ? 1.0
+              : -1.0;
           final strafeDir = v64.Vector2(
             -toPlayer.y * strafeSign,
             toPlayer.x * strafeSign,
           );
           final strafeTarget = transform.position + strafeDir * 4.0;
           final (strafedTransform, _) = _moveToward(
-            dt, newAI, entity.id, newTransform, strafeTarget,
-            map, allEntities, playerPosition,
+            dt,
+            newAI,
+            entity.id,
+            newTransform,
+            strafeTarget,
+            map,
+            allEntities,
+            playerPosition,
           );
           // Keep the player-facing rotation, not the strafed movement rotation
           newTransform = strafedTransform.copyWith(
@@ -329,8 +381,10 @@ class AISystem {
               case AIAttackType.hitscan:
                 // Accuracy degrades with distance — fair and avoidable at range.
                 // Close range (<=3u): ~95% hit. At full detection range: ~30%.
-                final normalizedDist =
-                    (distToPlayer / ai.detectionRange).clamp(0.0, 1.0);
+                final normalizedDist = (distToPlayer / ai.detectionRange).clamp(
+                  0.0,
+                  1.0,
+                );
                 final hitChance = 0.95 - normalizedDist * 0.65;
                 if (math.Random().nextDouble() <= hitChance) {
                   damageDealt = ai.projectileDamage;
@@ -475,6 +529,9 @@ class AISystem {
     );
 
     final newRotation = math.atan2(direction.y, direction.x);
-    return (transform.copyWith(position: newPos, rotation: newRotation), velocity);
+    return (
+      transform.copyWith(position: newPos, rotation: newRotation),
+      velocity,
+    );
   }
 }

@@ -1,0 +1,1807 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+class TextureGenerator {
+  static const int tileSize = 32;
+  static const int atlasSize = 128; // 4x4 tiles grid
+
+  /// Generates a basic texture atlas with procedural patterns.
+  /// Slot 0: Hospital Wall Tile (white dirty tiles)
+  /// Slot 1: Hospital Drywall (beige painted wall, peeling)
+  /// Slot 2: Hospital Floor (checkered linoleum)
+  /// Slot 3: Hospital Ceiling (acoustic tiles, water stains)
+  static Future<ui.Image> generateAtlas() async {
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    final paint = ui.Paint();
+
+    // Fill background
+    paint.color = const ui.Color(0xFF000000);
+    canvas.drawRect(
+      ui.Rect.fromLTWH(0, 0, atlasSize.toDouble(), atlasSize.toDouble()),
+      paint,
+    );
+
+    // 0. Hospital Wall Tile (0, 0)
+    _drawHospitalWallTile(canvas, 0, 0);
+
+    // 1. Hospital Drywall (1, 0)
+    _drawHospitalDrywall(canvas, 1, 0);
+
+    // 2. Hospital Floor Linoleum (2, 0)
+    _drawHospitalFloor(canvas, 2, 0);
+
+    // 3. Hospital Ceiling (3, 0)
+    _drawHospitalCeiling(canvas, 3, 0);
+
+    final picture = recorder.endRecording();
+    return picture.toImage(atlasSize, atlasSize);
+  }
+
+  // ─── HOSPITAL WALL TILE ───────────────────────────────────────────────────
+  // White ceramic tiles, dirty grout, humidity stains.
+  // Bright base (200-220) to survive GLSL distance attenuation.
+  static void _drawHospitalWallTile(ui.Canvas canvas, int tileX, int tileY) {
+    final rng = math.Random(1337);
+    final offsetX = (tileX * tileSize).toDouble();
+    final offsetY = (tileY * tileSize).toDouble();
+    final paint = ui.Paint();
+
+    // Grout lines every 10px horizontal, 8px vertical
+    const groutV = 10; // vertical grout column spacing
+    const groutH = 8; // horizontal grout row spacing
+
+    for (var y = 0; y < tileSize; y++) {
+      for (var x = 0; x < tileSize; x++) {
+        final isGroutX = (x % groutV == 0);
+        final isGroutY = (y % groutH == 0);
+
+        int r, g, b;
+
+        if (isGroutX || isGroutY) {
+          // Grout: cool gray
+          final n = rng.nextInt(15);
+          r = 135 + n;
+          g = 140 + n;
+          b = 145 + n;
+        } else {
+          // Tile face: off-white with slight noise
+          final n = rng.nextInt(18);
+          r = 205 + n;
+          g = 208 + n;
+          b = 210 + n;
+
+          // Moisture/mold stain — greenish blobs on seeded positions
+          final stainRng = math.Random((x ~/ 4) * 100 + (y ~/ 4));
+          if (stainRng.nextDouble() < 0.04) {
+            // Subtle green-gray moisture patch
+            r = 140 + rng.nextInt(20);
+            g = 165 + rng.nextInt(20);
+            b = 148 + rng.nextInt(20);
+          }
+
+          // Occasional dark corner dirt
+          final cornerRng = math.Random(x * 7 + y * 13);
+          if (cornerRng.nextDouble() < 0.015) {
+            r = 90 + rng.nextInt(30);
+            g = 72 + rng.nextInt(20);
+            b = 65 + rng.nextInt(20);
+          }
+        }
+
+        paint.color = ui.Color.fromARGB(
+          255,
+          r.clamp(0, 255),
+          g.clamp(0, 255),
+          b.clamp(0, 255),
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(offsetX + x, offsetY + y, 1, 1),
+          paint,
+        );
+      }
+    }
+  }
+
+  // ─── HOSPITAL DRYWALL ─────────────────────────────────────────────────────
+  // Beige/cream painted drywall, peeling paint patches, rust streaks.
+  static void _drawHospitalDrywall(ui.Canvas canvas, int tileX, int tileY) {
+    final rng = math.Random(4242);
+    final offsetX = (tileX * tileSize).toDouble();
+    final offsetY = (tileY * tileSize).toDouble();
+    final paint = ui.Paint();
+
+    for (var y = 0; y < tileSize; y++) {
+      for (var x = 0; x < tileSize; x++) {
+        // Base: warm beige hospital paint
+        final n = rng.nextInt(14);
+        var r = 195 + n;
+        var g = 190 + (n * 0.9).toInt();
+        var b = 173 + (n * 0.7).toInt();
+
+        // Peeling paint patches — cement gray
+        final peelRng = math.Random((x ~/ 5) * 31 + (y ~/ 5) * 17);
+        if (peelRng.nextDouble() < 0.09) {
+          final pn = rng.nextInt(25);
+          r = 135 + pn;
+          g = 135 + pn;
+          b = 135 + pn;
+        }
+
+        // Rust/water streak — thin vertical drip lines
+        if ((x % 11 == 3 || x % 17 == 7) && y > 10) {
+          final dripRng = math.Random(x * 53 + y);
+          if (dripRng.nextDouble() < 0.35) {
+            r = 160 + rng.nextInt(20);
+            g = 110 + rng.nextInt(20);
+            b = 55 + rng.nextInt(15);
+          }
+        }
+
+        // Fine crack lines — 1px dark diagonal
+        final crackRng = math.Random(x * 3 + y * 7 + 99);
+        if (crackRng.nextDouble() < 0.012) {
+          r = 80;
+          g = 80;
+          b = 80;
+        }
+
+        paint.color = ui.Color.fromARGB(
+          255,
+          r.clamp(0, 255),
+          g.clamp(0, 255),
+          b.clamp(0, 255),
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(offsetX + x, offsetY + y, 1, 1),
+          paint,
+        );
+      }
+    }
+  }
+
+  // ─── HOSPITAL FLOOR LINOLEUM ──────────────────────────────────────────────
+  // Classic checkered linoleum, cream and gray-green, worn edges.
+  static void _drawHospitalFloor(ui.Canvas canvas, int tileX, int tileY) {
+    final rng = math.Random(8888);
+    final offsetX = (tileX * tileSize).toDouble();
+    final offsetY = (tileY * tileSize).toDouble();
+    final paint = ui.Paint();
+
+    const squareSize = 8; // checkered tile size in pixels
+
+    for (var y = 0; y < tileSize; y++) {
+      for (var x = 0; x < tileSize; x++) {
+        final sqX = x ~/ squareSize;
+        final sqY = y ~/ squareSize;
+        final isLight = (sqX + sqY).isEven;
+
+        final n = rng.nextInt(10);
+        int r, g, b;
+
+        if (isLight) {
+          // Cream/ivory square
+          r = 205 + n;
+          g = 200 + n;
+          b = 185 + n;
+        } else {
+          // Gray-green square
+          r = 120 + n;
+          g = 125 + (n * 0.9).toInt();
+          b = 108 + (n * 0.7).toInt();
+        }
+
+        // Worn edge — slightly darker 1-2px border around each square
+        final lx = x % squareSize;
+        final ly = y % squareSize;
+        final onEdge =
+            lx == 0 || ly == 0 || lx == squareSize - 1 || ly == squareSize - 1;
+        if (onEdge) {
+          r = (r * 0.80).toInt();
+          g = (g * 0.80).toInt();
+          b = (b * 0.80).toInt();
+        }
+
+        // Occasional dirt smear
+        final dirtRng = math.Random(x * 11 + y * 23);
+        if (dirtRng.nextDouble() < 0.02) {
+          r = 90 + rng.nextInt(20);
+          g = 80 + rng.nextInt(20);
+          b = 70 + rng.nextInt(20);
+        }
+
+        paint.color = ui.Color.fromARGB(
+          255,
+          r.clamp(0, 255),
+          g.clamp(0, 255),
+          b.clamp(0, 255),
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(offsetX + x, offsetY + y, 1, 1),
+          paint,
+        );
+      }
+    }
+  }
+
+  // ─── HOSPITAL CEILING ─────────────────────────────────────────────────────
+  // Acoustic drop-ceiling tiles, yellowed, water-stained.
+  static void _drawHospitalCeiling(ui.Canvas canvas, int tileX, int tileY) {
+    final rng = math.Random(5555);
+    final offsetX = (tileX * tileSize).toDouble();
+    final offsetY = (tileY * tileSize).toDouble();
+    final paint = ui.Paint();
+
+    // Grid frame every 16px (two big acoustic tiles fit in 32px)
+    const gridStep = 16;
+
+    for (var y = 0; y < tileSize; y++) {
+      for (var x = 0; x < tileSize; x++) {
+        final isGrid = (x % gridStep == 0) || (y % gridStep == 0);
+        final n = rng.nextInt(14);
+        int r, g, b;
+
+        if (isGrid) {
+          // Metal T-bar grid: medium gray
+          r = 150 + n;
+          g = 150 + n;
+          b = 148 + n;
+        } else {
+          // Acoustic tile face: off-white, slightly yellowish
+          r = 200 + n;
+          g = 196 + (n * 0.9).toInt();
+          b = 168 + (n * 0.7).toInt();
+
+          // Water stain blobs — warm brown patches
+          final stainRng = math.Random((x ~/ 6) * 41 + (y ~/ 6) * 19);
+          if (stainRng.nextDouble() < 0.07) {
+            final sn = rng.nextInt(25);
+            r = 155 + sn;
+            g = 110 + (sn * 0.6).toInt();
+            b = 55 + (sn * 0.3).toInt();
+          }
+
+          // Small acoustic hole dots (perforated tile pattern)
+          final dotRng = math.Random(x * 5 + y * 7);
+          if (dotRng.nextDouble() < 0.04) {
+            r = 155;
+            g = 152;
+            b = 130;
+          }
+        }
+
+        paint.color = ui.Color.fromARGB(
+          255,
+          r.clamp(0, 255),
+          g.clamp(0, 255),
+          b.clamp(0, 255),
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(offsetX + x, offsetY + y, 1, 1),
+          paint,
+        );
+      }
+    }
+  }
+
+  /// Generates a separate atlas for entities (Enemies, Items).
+  /// 32x32 Tiles.
+  /// Slot 0: Enemy (Red Blob)
+  /// Slot 1: Key (Yellow)
+  /// Generates a separate atlas for entities (Enemies, Items).
+  /// 128x128 Atlas (4x4 grid of 32x32 tiles).
+  /// Row 0: Idle (2 frames)
+  /// Row 1: Walk (2 frames)
+  /// Row 2: Attack (2 frames)
+  /// Row 3: Pain/Die (2 frames)
+  static Future<ui.Image> generateSpriteAtlas() async {
+    const size = 128; // Increased from 64 to support more frames
+    final buffer = Uint8List(size * size * 4);
+
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        final index = (y * size + x) * 4;
+        final slotX = x ~/ 32;
+        final slotY = y ~/ 32; // 0=Idle, 1=Walk, 2=Attack, 3=Pain
+        final lx = x % 32; // Local X
+        final ly = y % 32; // Local Y
+
+        var r = 0;
+        var g = 0;
+        var b = 0;
+        var a = 0;
+
+        // Base Enemy Shape (Circle-ish)
+        const cx = 16.0;
+        const cy = 16.0;
+        final dx = cx - lx;
+        final dy = cy - ly;
+        final distSq = dx * dx + dy * dy;
+
+        // --- ROW 0: IDLE ---
+        if (slotY == 0) {
+          if ((slotX == 0 || slotX == 1) && distSq < 12 * 12) {
+            r = 150;
+            g = 20;
+            b = 20;
+            a = 255; // Dark Red Body
+            // Eyes (Blinking in frame 1)
+            if (slotX == 0 || (slotX == 1 && ly > 12)) {
+              if (lx > 10 && lx < 14 && ly > 10 && ly < 14) {
+                r = 255;
+                g = 255;
+                b = 0;
+              }
+              if (lx > 18 && lx < 22 && ly > 10 && ly < 14) {
+                r = 255;
+                g = 255;
+                b = 0;
+              }
+            }
+          } else if (slotX == 2) {
+            // Normal Projectile (Plasma Ball - Cyan/White)
+            // Distinct core to separate from enemies
+            final dist = math.sqrt(distSq);
+            if (dist < 14) {
+              // Glow
+              final intensity = (1.0 - dist / 14.0);
+              r = 0;
+              g = (255 * intensity).toInt().clamp(0, 255);
+              b = 255;
+              a = (255 * intensity).toInt().clamp(0, 255);
+
+              // Bright Core
+              if (dist < 8) {
+                r = 200;
+                g = 255;
+                b = 255;
+                a = 255;
+              }
+            }
+          } else if (slotX == 3) {
+            // Bouncing Projectile (BFG - Green/White)
+            final dist = math.sqrt(distSq);
+            if (dist < 14) {
+              final intensity = (1.0 - dist / 14.0);
+              r = (50 * intensity).toInt().clamp(0, 255);
+              g = 255;
+              b = (50 * intensity).toInt().clamp(0, 255);
+              a = (255 * intensity).toInt().clamp(0, 255);
+
+              // Bright Core
+              if (dist < 8) {
+                r = 200;
+                g = 255;
+                b = 200;
+                a = 255;
+              }
+            }
+          }
+        }
+        // --- ROW 1: WALK ---
+        else if (slotY == 1) {
+          if (slotX == 3) {
+            // Muzzle Flash (Slot 3) - Bright Explosion
+            if (distSq < 14 * 14) {
+              // Random spikes logic or just simple gradient
+              final dist = math.sqrt(distSq);
+              if (dist < 10) {
+                r = 255;
+                g = 255;
+                b = 255;
+                a = 255; // Core
+              } else {
+                r = 255;
+                g = 200;
+                b = 50;
+                a = (255 * (1.0 - dist / 14)).toInt();
+              }
+            }
+          } else {
+            // Walking Enemy (Slots 0, 1, 2)
+            // Bobbing effect
+            final bob = (slotX == 0) ? -2 : 2;
+            final wdy = (cy + bob) - ly;
+            if (dx * dx + wdy * wdy < 12 * 12) {
+              r = 180;
+              g = 30;
+              b = 30;
+              a = 255; // Red Body
+              // Eyes
+              if (lx > 10 && lx < 14 && ly > 10 && ly < 14) {
+                r = 255;
+                g = 255;
+                b = 0;
+              }
+              if (lx > 18 && lx < 22 && ly > 10 && ly < 14) {
+                r = 255;
+                g = 255;
+                b = 0;
+              }
+            }
+          }
+        }
+        // --- ROW 2: ATTACK ---
+        else if (slotY == 2) {
+          if (distSq < 12 * 12) {
+            r = 255;
+            g = 50;
+            b = 50;
+            a = 255; // Bright Red
+            // Muzzle Flash
+            if (slotX == 1) {
+              if (lx > 20 && lx < 30 && ly > 14 && ly < 26) {
+                r = 255;
+                g = 255;
+                b = 200; // Flash
+              }
+            }
+            // Angry Eyes
+            if (lx > 10 && lx < 14 && ly > 10 && ly < 14) {
+              r = 255;
+              g = 0;
+              b = 0;
+            }
+            if (lx > 18 && lx < 22 && ly > 10 && ly < 14) {
+              r = 255;
+              g = 0;
+              b = 0;
+            }
+          }
+        }
+        // --- ROW 3: PAIN / DIE ---
+        else if (slotY == 3) {
+          if (slotX == 0) {
+            // Pain (White flash)
+            if (distSq < 12 * 12) {
+              r = 255;
+              g = 200;
+              b = 200;
+              a = 255; // Whitish Red
+              // Eyes Wide
+              if (lx > 9 && lx < 15 && ly > 9 && ly < 15) {
+                r = 0;
+                g = 0;
+                b = 0;
+              }
+              if (lx > 17 && lx < 23 && ly > 9 && ly < 15) {
+                r = 0;
+                g = 0;
+                b = 0;
+              }
+            }
+          } else if (slotX == 1 || slotX == 2) {
+            // Die (Flattened / Pool)
+            if (lx > 4 && lx < 28 && ly > 20 && ly < 30) {
+              r = 120;
+              g = 0;
+              b = 0;
+              a = 255; // Blood pool
+            }
+            // slotX == 3 → Wall Torch sprite — Minecraft-style pixel art
+            // 32×32 canvas. Torch is a diagonal stick (45°, bottom-left to
+            // upper-right) inset into the wall, with layered pixel-art fire
+            // at the tip and an iron bracket at the base.
+          } else if (slotX == 3) {
+            // ─────────────────────────────────────────────────────────────
+            // Colour palette
+            // ─────────────────────────────────────────────────────────────
+            // Wood shades (for depth on the diagonal)
+            const woodLight = 0xFFDEB887; // light grain highlight
+            const woodMid = 0xFFC19A6B; // main face colour
+            const woodDark = 0xFF8B5E3C; // shadow side
+            const woodDarker = 0xFF6B3A1F; // deep shadow
+            const woodCap = 0xFF4A280D; // charred tip / top-cap
+
+            // Fire shades (top to bottom of flame)
+            const fireTip = 0xFFFFFFCC; // white-hot tip
+            const fireYellow = 0xFFFFE000; // bright yellow
+            const fireOrangeH = 0xFFFF9900; // high orange
+            const fireOrangeL = 0xFFFF6600; // low orange
+            const fireRed = 0xFFCC2200; // base red spark
+
+            // Bracket metal
+            const metalHigh = 0xFFA0A0A8; // highlight
+            const metalMid = 0xFF707078; // main face
+            const metalDark = 0xFF404048; // shadow
+
+            // Transparent sentinel
+            const T = 0x00000000;
+
+            // ─────────────────────────────────────────────────────────────
+            // Full 32×32 pixel map (row 0 = top of sprite).
+            // Each entry is an ARGB int.
+            // ─────────────────────────────────────────────────────────────
+            const pixelMap = <List<int>>[
+              //    0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31
+              /* 00 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireTip,
+                fireTip,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 01 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireYellow,
+                fireTip,
+                fireYellow,
+                fireTip,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 02 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireYellow,
+                fireTip,
+                fireYellow,
+                fireTip,
+                fireYellow,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 03 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireOrangeH,
+                fireYellow,
+                fireTip,
+                fireYellow,
+                fireTip,
+                fireOrangeH,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 04 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireOrangeH,
+                fireYellow,
+                fireTip,
+                fireYellow,
+                fireTip,
+                fireOrangeH,
+                fireOrangeL,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 05 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireOrangeH,
+                fireOrangeH,
+                fireYellow,
+                fireYellow,
+                fireOrangeH,
+                fireOrangeH,
+                fireOrangeL,
+                fireRed,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 06 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireOrangeL,
+                fireOrangeH,
+                fireOrangeH,
+                fireYellow,
+                fireOrangeH,
+                fireOrangeL,
+                fireRed,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 07 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireRed,
+                fireOrangeL,
+                fireOrangeH,
+                fireOrangeH,
+                fireOrangeL,
+                fireRed,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 08 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                fireRed,
+                fireOrangeL,
+                fireOrangeL,
+                fireRed,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 09 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodCap,
+                woodCap,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 10 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodCap,
+                woodDark,
+                woodMid,
+                woodCap,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 11 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodCap,
+                woodDark,
+                woodMid,
+                woodDark,
+                woodCap,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 12 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodCap,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 13 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 14 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 15 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 16 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodLight,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 17 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 18 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 19 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 20 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 21 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 22 */ [
+                T,
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 23 */ [
+                T,
+                T,
+                T,
+                woodDarker,
+                woodDark,
+                woodMid,
+                woodLight,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 24 */ [
+                T,
+                T,
+                metalHigh,
+                metalMid,
+                woodDark,
+                woodMid,
+                woodMid,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 25 */ [
+                T,
+                metalHigh,
+                metalMid,
+                metalMid,
+                metalDark,
+                woodDarker,
+                woodDarker,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 26 */ [
+                metalHigh,
+                metalMid,
+                metalMid,
+                metalDark,
+                metalDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 27 */ [
+                metalMid,
+                metalMid,
+                metalDark,
+                metalDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 28 */ [
+                metalMid,
+                metalDark,
+                metalDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 29 */ [
+                metalDark,
+                metalDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 30 */ [
+                metalDark,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+              /* 31 */ [
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+                T,
+              ],
+            ];
+
+            if (ly < pixelMap.length && lx < pixelMap[ly].length) {
+              final argb = pixelMap[ly][lx];
+              a = (argb >> 24) & 0xFF;
+              r = (argb >> 16) & 0xFF;
+              g = (argb >> 8) & 0xFF;
+              b = argb & 0xFF;
+            }
+          } // end slotX == 3
+        } // end slotY == 3
+
+        buffer[index] = r;
+        buffer[index + 1] = g;
+        buffer[index + 2] = b;
+        buffer[index + 3] = a;
+      }
+    }
+
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
+      buffer,
+      size,
+      size,
+      ui.PixelFormat.rgba8888,
+      completer.complete,
+    );
+    return completer.future;
+  }
+
+  /// Generates view-model sprites for weapons.
+  /// Size: 320x64 (5 weapons x 64px width).
+  /// 0: Pistol
+  /// 1: Shotgun
+  /// 2: Rifle
+  /// 3: Bounce Pistol (uses Pistol sprite with diff colors)
+  /// 4: Bounce Rifle (uses Rifle sprite with diff colors)
+  static Future<ui.Image> generateWeaponAtlas() async {
+    const width = 320; // 5 weapons * 64
+    const height = 64;
+    // const itemWidth = 64; // Unused
+
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // 0. Pistol
+    _drawWeaponSprite(canvas, 0, 0, Colors.grey);
+
+    // 1. Shotgun (Double barrel)
+    _drawWeaponSprite(canvas, 1, 0, Colors.brown);
+
+    // 2. Rifle (Automatic)
+    _drawWeaponSprite(canvas, 2, 0, Colors.black);
+
+    // 3. Bounce Pistol (Green/Futuristic)
+    _drawWeaponSprite(canvas, 3, 0, Colors.lightGreen);
+
+    // 4. Bounce Rifle (Blue/Futuristic)
+    _drawWeaponSprite(canvas, 4, 0, Colors.lightBlue);
+
+    final picture = recorder.endRecording();
+    return picture.toImage(width, height);
+  }
+
+  static void _drawWeaponSprite(
+    ui.Canvas canvas,
+    int index,
+    int row,
+    ui.Color baseColor,
+  ) {
+    final offsetX = (index * 64).toDouble();
+    final offsetY = (row * 64).toDouble();
+
+    // Center of the 64x64 slot
+    final cx = offsetX + 32;
+    final bottom = offsetY + 64;
+
+    // Metallic Gradient Helper
+    ui.Paint getMetallicPaint(ui.Rect rect, ui.Color base) {
+      return ui.Paint()
+        ..shader = ui.Gradient.linear(
+          ui.Offset(rect.left, rect.top),
+          ui.Offset(rect.right, rect.top),
+          [
+            base.withOpacity(0.4),
+            base,
+            base.withOpacity(0.6),
+            base,
+            base.withOpacity(0.4),
+          ],
+          [0.0, 0.2, 0.5, 0.8, 1.0],
+        );
+    }
+
+    switch (index) {
+      case 0: // Pistol
+      case 3: // Bounce Pistol (Futuristic)
+        // 1. Grip (Darker)
+        final gripRect = ui.Rect.fromLTWH(cx - 5, bottom - 25, 10, 25);
+        canvas.drawRect(
+          gripRect,
+          ui.Paint()..color = const ui.Color(0xFF2d2d2d),
+        );
+
+        // 2. Slide/Barrel (Metallic)
+        final barrelRect = ui.Rect.fromLTWH(cx - 6, bottom - 35, 12, 28);
+        canvas.drawRect(barrelRect, getMetallicPaint(barrelRect, baseColor));
+
+        // 3. Slide Detail (Top highlight)
+        canvas.drawRect(
+          ui.Rect.fromLTWH(cx - 4, bottom - 35, 8, 28),
+          ui.Paint()..color = ui.Color.fromARGB(50, 255, 255, 255),
+        );
+
+        // 4. Muzzle
+        canvas.drawRect(
+          ui.Rect.fromLTWH(cx - 2, bottom - 35, 4, 4),
+          ui.Paint()..color = const ui.Color(0xFF111111),
+        );
+        break;
+
+      case 1: // Shotgun
+        // 1. Stock (Wood)
+        final stockRect = ui.Rect.fromLTWH(cx - 8, bottom - 25, 16, 25);
+        canvas.drawRect(
+          stockRect,
+          ui.Paint()..color = const ui.Color(0xFF5D4037),
+        );
+        // Wood grain
+        for (var i = 0; i < 3; i++) {
+          canvas.drawLine(
+            ui.Offset(cx - 6.0 + i * 5, bottom - 25),
+            ui.Offset(cx - 6.0 + i * 5, bottom),
+            ui.Paint()
+              ..color = const ui.Color(0xFF3E2723)
+              ..strokeWidth = 1,
+          );
+        }
+
+        // 2. Barrels (Double Metallic)
+        final b1 = ui.Rect.fromLTWH(cx - 8, bottom - 50, 6, 40);
+        final b2 = ui.Rect.fromLTWH(cx + 2, bottom - 50, 6, 40);
+        canvas.drawRect(b1, getMetallicPaint(b1, ui.Color(0xFF606060)));
+        canvas.drawRect(b2, getMetallicPaint(b2, ui.Color(0xFF606060)));
+
+        // 3. Muzzle Holes
+        canvas.drawRect(
+          ui.Rect.fromLTWH(cx - 7, bottom - 50, 4, 4),
+          ui.Paint()..color = Colors.black,
+        );
+        canvas.drawRect(
+          ui.Rect.fromLTWH(cx + 3, bottom - 50, 4, 4),
+          ui.Paint()..color = Colors.black,
+        );
+        break;
+
+      case 2: // Rifle
+      case 4: // Bounce Rifle
+        // 1. Stock (Dark Polymer)
+        final stockRect = ui.Rect.fromLTWH(cx - 6, bottom - 20, 12, 20);
+        canvas.drawRect(
+          stockRect,
+          ui.Paint()..color = const ui.Color(0xFF263238),
+        );
+
+        // 2. Body (Detailed)
+        final bodyRect = ui.Rect.fromLTWH(cx - 8, bottom - 35, 16, 20);
+        canvas.drawRect(bodyRect, getMetallicPaint(bodyRect, baseColor));
+
+        // 3. Long Barrel
+        final barrelRect2 = ui.Rect.fromLTWH(cx - 3, bottom - 60, 6, 30);
+        canvas.drawRect(
+          barrelRect2,
+          getMetallicPaint(barrelRect2, const ui.Color(0xFF111111)),
+        );
+
+        // 4. Scope (Lens reflection)
+        final scopeRect = ui.Rect.fromLTWH(cx - 4, bottom - 42, 8, 6);
+        canvas.drawRect(
+          scopeRect,
+          ui.Paint()..color = const ui.Color(0xFF000000),
+        );
+        // Lens Glint
+        canvas.drawCircle(
+          ui.Offset(cx, bottom - 39),
+          2,
+          ui.Paint()..color = const ui.Color(0xFF4FC3F7),
+        ); // Light Blue
+        break;
+    }
+  }
+}
+
+// Helper class for Colors since we don't import material
+class Colors {
+  static const grey = ui.Color(0xFF808080);
+  static const brown = ui.Color(0xFF8B4513);
+  static const black = ui.Color(0xFF202020);
+  static const lightGreen = ui.Color(0xFF90EE90);
+  static const lightBlue = ui.Color(0xFFADD8E6);
+}
