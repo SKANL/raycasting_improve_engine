@@ -50,7 +50,14 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   // Mobile Controls
   JoystickComponent? _joystick;
   HudButtonComponent? _fireButton;
+  HudButtonComponent? _reloadButton;
   HudButtonComponent? _switchWeaponButton;
+
+  /// Sync flag for the touch fire button.
+  /// Using a bool instead of InputBloc avoids the async-Bloc-vs-sync-update
+  /// timing gap where onPressed emits an event but the Bloc hasn't processed
+  /// it yet by the time _processInput reads inputBloc.state in the same tick.
+  bool _touchFireHeld = false;
 
   @override
   Future<void> onLoad() async {
@@ -62,11 +69,6 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
 
     final renderer = RaycastRenderer();
     _renderer = renderer;
-
-    // Initialize Mobile Controls if on mobile
-    if (_isMobile()) {
-      await _initMobileControls();
-    }
 
     await add(
       FlameBlocProvider<GameBloc, GameState>.value(
@@ -123,8 +125,10 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
       }
     });
 
-    // Start with fully restored health
-    // gameBloc.add(GameReset());
+    // Initialize Mobile Controls AFTER the game world so they render on top
+    // (Flame renders equal-priority siblings in insertion order: later = on top).
+    // Additionally all controls use priority:10 > FlameBlocProvider default 0.
+    await _initMobileControls();
   }
 
   @override
@@ -136,50 +140,68 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
   }
 
   bool _isMobile() {
-    if (kIsWeb) return false;
-    return Platform.isAndroid || Platform.isIOS;
+    if (kIsWeb) return true;
+    if (!Platform.isAndroid && !Platform.isIOS) return false;
+    return true;
   }
 
   Future<void> _initMobileControls() async {
-    final knobPaint = Paint()..color = const Color(0x80FFFFFF);
-    final backgroundPaint = Paint()..color = const Color(0x40FFFFFF);
-
+    // ── Left joystick — Y = move forward/back, X = camera turn ───────────
     _joystick = JoystickComponent(
-      knob: CircleComponent(radius: 20, paint: knobPaint),
-      background: CircleComponent(radius: 50, paint: backgroundPaint),
-      margin: const EdgeInsets.only(left: 40, bottom: 40),
+      knob: CircleComponent(
+          radius: 28, paint: Paint()..color = const Color(0xAAFFFFFF)),
+      background: CircleComponent(
+          radius: 62, paint: Paint()..color = const Color(0x44FFFFFF)),
+      margin: const EdgeInsets.only(left: 48, bottom: 48),
+      priority: 10,
     );
     await add(_joystick!);
 
-    // Fire Button
+    // ── Fire button — bottom-center-right, left of minimap ─────────────
+    // Minimap occupies bottom:16–166, right:16–166. All buttons use right>166
+    // so they sit to the LEFT of the minimap and never overlap it.
     _fireButton = HudButtonComponent(
       button: CircleComponent(
-        radius: 30,
-        paint: Paint()..color = const Color(0x80FF0000),
+        radius: 42,
+        paint: Paint()..color = const Color(0xAAFF2200),
       ),
-      margin: const EdgeInsets.only(right: 40, bottom: 60),
-      onPressed: () {
-        inputBloc.add(const ActionStarted(GameAction.fire));
-      },
-      onReleased: () {
-        inputBloc.add(const ActionEnded(GameAction.fire));
-      },
+      margin: const EdgeInsets.only(right: 196, bottom: 24),
+      priority: 10,
+      onPressed: () => _touchFireHeld = true,
+      onReleased: () => _touchFireHeld = false,
     );
     await add(_fireButton!);
 
-    // Weapon Switch Button (Cycle)
+    // ── Reload button — same row as fire, further left ───────────────────
+    // Fire left-edge is at right:280 (196+84); reload right-edge at right:300 → 20px gap.
+    _reloadButton = HudButtonComponent(
+      button: CircleComponent(
+        radius: 26,
+        paint: Paint()..color = const Color(0xAA0088FF),
+      ),
+      margin: const EdgeInsets.only(right: 300, bottom: 24),
+      priority: 10,
+      onPressed: () => weaponBloc.add(const WeaponReloaded()),
+      onReleased: () {},
+    );
+    await add(_reloadButton!);
+
+    // ── Weapon cycle — above fire button, same column ────────────────────
+    // Fire top-edge is at bottom:108 (24+84); switch bottom-edge at bottom:124 → 16px gap.
     _switchWeaponButton = HudButtonComponent(
       button: CircleComponent(
-        radius: 20,
-        paint: Paint()..color = const Color(0x8000FF00),
+        radius: 22,
+        paint: Paint()..color = const Color(0xAA00CC66),
       ),
-      margin: const EdgeInsets.only(right: 40, bottom: 140),
+      margin: const EdgeInsets.only(right: 196, bottom: 124),
+      priority: 10,
       onPressed: () {
-        // Simple cycling logic or specific weapon switch
-        // For now, let's just cycle to next available
-        // Or maybe just switch to shotgun for testing
-        weaponBloc.add(const WeaponSwitched(Weapon.shotgun));
+        const all = [Weapon.pistol, Weapon.shotgun, Weapon.rifle,
+                     Weapon.bouncePistol, Weapon.bounceRifle];
+        final cur = weaponBloc.state.currentWeapon;
+        weaponBloc.add(WeaponSwitched(all[(all.indexOf(cur) + 1) % all.length]));
       },
+      onReleased: () {},
     );
     await add(_switchWeaponButton!);
   }
@@ -241,8 +263,9 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
       }
     }
 
-    // Handle shooting
-    if (inputState.isPressed(GameAction.fire)) {
+    // Handle shooting — _touchFireHeld is a sync bool set by the HUD button
+    // (InputBloc routes are async and would miss single-frame taps).
+    if (_touchFireHeld || inputState.isPressed(GameAction.fire)) {
       if (weaponBloc.state.canFire) {
         final currentWeapon = weaponBloc.state.currentWeapon;
 

@@ -23,6 +23,15 @@ class AppBlocObserver extends BlocObserver {
 }
 
 Future<void> bootstrap(FutureOr<Widget> Function() builder) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock orientation to landscape + enable immersive fullscreen for game
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
   LogService.init();
 
   FlutterError.onError = (details) {

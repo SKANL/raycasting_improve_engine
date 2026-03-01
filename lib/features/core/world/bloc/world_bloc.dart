@@ -177,7 +177,10 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         textureAtlas: textureAtlas,
         spriteAtlas: spriteAtlas,
         weaponAtlas: weaponAtlas,
-        entities: _spawnInitialPickups(map, spawn),
+        entities: [
+          ..._spawnInitialPickups(map, spawn),
+          ..._spawnInitialEnemies(map, spawn),
+        ],
         lights: lights,
         playerPosition: spawn,
         playerDirection: 0,
@@ -816,7 +819,43 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   }
 
   /// Spawns ammo pickup entities at room positions spread across the map.
-  /// Called once during world initialization.
+  List<GameEntity> _spawnInitialEnemies(GameMap map, Vector2 playerPos) {
+    const count = 4; // grunts that greet the player immediately
+    const minDist = 5.0; // must be at least 5 units away from spawn
+    final rng = math.Random(map.width * 17 + map.height * 31);
+    final enemies = <GameEntity>[];
+
+    final candidateRooms = map.roomRects
+        .where(
+          (r) => Vector2(r.centerX, r.centerY).distanceTo(playerPos) >= minDist,
+        )
+        .toList();
+
+    if (candidateRooms.isEmpty) return enemies;
+
+    candidateRooms.shuffle(rng);
+    final usedRooms = candidateRooms.take(count).toList();
+
+    for (var i = 0; i < usedRooms.length; i++) {
+      final room = usedRooms[i];
+      final jitter = (rng.nextDouble() - 0.5) * 0.8;
+      final pos = Vector2(
+        room.centerX + jitter,
+        room.centerY + (rng.nextDouble() - 0.5) * 0.8,
+      );
+      _enemyCounter++;
+      enemies.add(
+        GameEntity(
+          id: 'enemy_init_$i',
+          components: [
+            TransformComponent(position: pos),
+            ..._buildEnemyComponents(),
+          ],
+        ),
+      );
+    }
+    return enemies;
+  }
   List<GameEntity> _spawnInitialPickups(GameMap map, Vector2 playerPos) {
     const minDist = 3.0;
     final rng = math.Random(map.width * 31 + map.height);
@@ -900,73 +939,30 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     }
     if (spawnPos == null) return null;
 
-    final animations = {
-      'idle': const AnimationState(
-        name: 'idle',
-        frames: [
-          ui.Rect.fromLTWH(0, 0, 32, 32),
-          ui.Rect.fromLTWH(32, 0, 32, 32),
-        ],
-        frameDuration: 0.5,
-      ),
-      'walk': const AnimationState(
-        name: 'walk',
-        frames: [
-          ui.Rect.fromLTWH(0, 32, 32, 32),
-          ui.Rect.fromLTWH(32, 32, 32, 32),
-        ],
-        frameDuration: 0.25,
-      ),
-      'attack': const AnimationState(
-        name: 'attack',
-        frames: [
-          ui.Rect.fromLTWH(0, 64, 32, 32),
-          ui.Rect.fromLTWH(32, 64, 32, 32),
-        ],
-        frameDuration: 0.1,
-        loop: true,
-      ),
-      'pain': const AnimationState(
-        name: 'pain',
-        frames: [ui.Rect.fromLTWH(0, 96, 32, 32)],
-        frameDuration: 0.5,
-      ),
-      'die': const AnimationState(
-        name: 'die',
-        frames: [
-          ui.Rect.fromLTWH(0, 96, 32, 32),
-          ui.Rect.fromLTWH(32, 96, 32, 32),
-        ],
-        frameDuration: 0.2,
-        loop: false,
-      ),
-    };
-
     return GameEntity(
       id: 'enemy_dyn_$_enemyCounter',
       components: [
         TransformComponent(position: spawnPos),
-        ..._buildEnemyComponents(animations),
+        ..._buildEnemyComponents(),
       ],
     );
   }
 
-  /// Returns the [HealthComponent], [RenderComponent], and [AIComponent]
-  /// for the enemy type chosen by the current wave.
-  List<GameComponent> _buildEnemyComponents(
-    Map<String, AnimationState> animations,
-  ) {
+  /// Returns [HealthComponent], [RenderComponent], [AIComponent], and
+  /// [AnimationComponent] for the wave-gated enemy type.
+  ///
+  /// Sprite atlas Y-offsets (128 × 384 atlas):
+  ///   Grunt    → Y   0   Shooter → Y 128   Guardian → Y 256
+  List<GameComponent> _buildEnemyComponents() {
     // Wave-gated enemy type selection
     final EnemyType type;
     if (_waveNumber <= 1) {
       type = EnemyType.grunt;
     } else if (_waveNumber <= 3) {
-      // 70% grunt, 30% shooter
       type = math.Random().nextDouble() < 0.70
           ? EnemyType.grunt
           : EnemyType.shooter;
     } else {
-      // 50% grunt, 30% shooter, 20% guardian
       final roll = math.Random().nextDouble();
       if (roll < 0.50) {
         type = EnemyType.grunt;
@@ -976,6 +972,44 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
         type = EnemyType.guardian;
       }
     }
+
+    // Atlas Y offset per type
+    final double yo;
+    switch (type) {
+      case EnemyType.grunt:    yo = 0;
+      case EnemyType.shooter:  yo = 128;
+      case EnemyType.guardian: yo = 256;
+    }
+
+    final animations = {
+      'idle': AnimationState(
+        name: 'idle',
+        frames: [ui.Rect.fromLTWH(0, yo, 32, 32), ui.Rect.fromLTWH(32, yo, 32, 32)],
+        frameDuration: 0.5,
+      ),
+      'walk': AnimationState(
+        name: 'walk',
+        frames: [ui.Rect.fromLTWH(0, yo + 32, 32, 32), ui.Rect.fromLTWH(32, yo + 32, 32, 32)],
+        frameDuration: 0.25,
+      ),
+      'attack': AnimationState(
+        name: 'attack',
+        frames: [ui.Rect.fromLTWH(0, yo + 64, 32, 32), ui.Rect.fromLTWH(32, yo + 64, 32, 32)],
+        frameDuration: 0.1,
+        loop: true,
+      ),
+      'pain': AnimationState(
+        name: 'pain',
+        frames: [ui.Rect.fromLTWH(0, yo + 96, 32, 32)],
+        frameDuration: 0.5,
+      ),
+      'die': AnimationState(
+        name: 'die',
+        frames: [ui.Rect.fromLTWH(0, yo + 96, 32, 32), ui.Rect.fromLTWH(32, yo + 96, 32, 32)],
+        frameDuration: 0.2,
+        loop: false,
+      ),
+    };
 
     switch (type) {
       case EnemyType.grunt:
@@ -988,14 +1022,14 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       case EnemyType.shooter:
         return [
           const RenderComponent(spritePath: 'enemy_shooter'),
-          const HealthComponent(current: 55, max: 55), // More HP than grunt
+          const HealthComponent(current: 55, max: 55),
           AIComponent.shooter,
           AnimationComponent(animations: animations, currentState: 'idle'),
         ];
       case EnemyType.guardian:
         return [
           const RenderComponent(spritePath: 'enemy_guardian'),
-          const HealthComponent(current: 80, max: 80), // Tanky
+          const HealthComponent(current: 80, max: 80),
           AIComponent.guardian,
           AnimationComponent(animations: animations, currentState: 'idle'),
         ];

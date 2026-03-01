@@ -174,6 +174,8 @@ class TextureGenerator {
   /// Row 2: Attack (2 frames)
   /// Row 3: Pain/Die (2 frames)
   static Future<ui.Image> generateSpriteAtlas() async {
+    return _generateSpriteAtlasCanvas();
+    // ignore: dead_code
     const size = 128; // Increased from 64 to support more frames
     final buffer = Uint8List(size * size * 4);
 
@@ -1944,7 +1946,162 @@ class TextureGenerator {
         break;
     }
   }
+
+  // ── Canvas-based humanoid sprite atlas ─────────────────────────────────
+  // Layout: 128 × 384 px
+  //   Grunt    Y   0–127  (military olive)
+  //   Shooter  Y 128–255  (tactical steel)
+  //   Guardian Y 256–383  (heavy blood-armor)
+  //
+  // Per type, col 0–1: animation frames A/B per row. Cols 2–3 at Y=0: particles.
+  static Future<ui.Image> _generateSpriteAtlasCanvas() async {
+    const w = 128;
+    const h = 384;
+    final rec = ui.PictureRecorder();
+    final c   = ui.Canvas(
+      rec, ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()));
+    c.drawRect(
+      ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+      ui.Paint()..color = const ui.Color(0x00000000),
+    );
+    // Projectile particle glows — backward-compat positions (Y=0 cols 2-3)
+    _spriteProjectileGlow(c, 64, 0,
+        const ui.Color(0xFF0088EE), const ui.Color(0xFF44FFFF));
+    _spriteProjectileGlow(c, 96, 0,
+        const ui.Color(0xFF008800), const ui.Color(0xFF88FF88));
+    // Enemy sprite sheets
+    _spriteEnemyAllFrames(c, 0,   _ESPalette.grunt);
+    _spriteEnemyAllFrames(c, 128, _ESPalette.shooter);
+    _spriteEnemyAllFrames(c, 256, _ESPalette.guardian);
+    return rec.endRecording().toImage(w, h);
+  }
+
+  static void _spriteProjectileGlow(
+    ui.Canvas c, double ox, double oy, ui.Color core, ui.Color rim,
+  ) {
+    c.drawCircle(
+      ui.Offset(ox + 16, oy + 16), 12,
+      ui.Paint()
+        ..color = rim.withValues(alpha: 0.6)
+        ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 5),
+    );
+    c.drawCircle(ui.Offset(ox + 16, oy + 16), 7,  ui.Paint()..color = core);
+    c.drawCircle(ui.Offset(ox + 16, oy + 16), 3,
+        ui.Paint()..color = const ui.Color(0xFFFFFFFF));
+  }
+
+  static void _spriteEnemyAllFrames(ui.Canvas c, double yBase, _ESPalette p) {
+    _spriteEnemy(c,  0, yBase +  0, p, _ESFrame.idleA);
+    _spriteEnemy(c, 32, yBase +  0, p, _ESFrame.idleB);
+    _spriteEnemy(c,  0, yBase + 32, p, _ESFrame.walkA);
+    _spriteEnemy(c, 32, yBase + 32, p, _ESFrame.walkB);
+    _spriteEnemy(c,  0, yBase + 64, p, _ESFrame.attackA);
+    _spriteEnemy(c, 32, yBase + 64, p, _ESFrame.attackB);
+    _spriteEnemy(c,  0, yBase + 96, p, _ESFrame.pain);
+    _spriteEnemy(c, 32, yBase + 96, p, _ESFrame.die);
+  }
+
+  /// Draws a single 32×32 humanoid enemy tile at canvas origin (ox, oy).
+  static void _spriteEnemy(
+      ui.Canvas c, double ox, double oy, _ESPalette p, _ESFrame f) {
+    final ui.Color helmet, helmetHi, visor, torso, arm, gunB, gunHi, leg, boot,
+        eye;
+    switch (p) {
+      case _ESPalette.grunt:
+        helmet   = const ui.Color(0xFF263010); helmetHi = const ui.Color(0xFF3E5018);
+        visor    = const ui.Color(0xFF1A1A0E); torso    = const ui.Color(0xFF32481A);
+        arm      = const ui.Color(0xFF2A3A14); gunB     = const ui.Color(0xFF282828);
+        gunHi    = const ui.Color(0xFF444444); leg      = const ui.Color(0xFF243018);
+        boot     = const ui.Color(0xFF141410); eye      = const ui.Color(0xFFFF6600);
+      case _ESPalette.shooter:
+        helmet   = const ui.Color(0xFF282835); helmetHi = const ui.Color(0xFF444455);
+        visor    = const ui.Color(0xFF003880); torso    = const ui.Color(0xFF383848);
+        arm      = const ui.Color(0xFF303040); gunB     = const ui.Color(0xFF181820);
+        gunHi    = const ui.Color(0xFF3A3A4A); leg      = const ui.Color(0xFF282830);
+        boot     = const ui.Color(0xFF141418); eye      = const ui.Color(0xFF00CCFF);
+      case _ESPalette.guardian:
+        helmet   = const ui.Color(0xFF380808); helmetHi = const ui.Color(0xFF600000);
+        visor    = const ui.Color(0xFF8A0000); torso    = const ui.Color(0xFF250505);
+        arm      = const ui.Color(0xFF280000); gunB     = const ui.Color(0xFF0F0808);
+        gunHi    = const ui.Color(0xFF350808); leg      = const ui.Color(0xFF1E0000);
+        boot     = const ui.Color(0xFF0F0000); eye      = const ui.Color(0xFFFF2200);
+    }
+    final paint = ui.Paint();
+    void b(double x, double y, double w, double h, ui.Color col) {
+      paint.color = col;
+      c.drawRect(ui.Rect.fromLTWH(ox + x, oy + y, w, h), paint);
+    }
+    var headY = 0.0, llY = 0.0, rlY = 0.0, armY = 0.0;
+    var muzzle = false;
+    switch (f) {
+      case _ESFrame.idleA:   headY = -0.5; break;
+      case _ESFrame.idleB:   headY =  0.5; break;
+      case _ESFrame.walkA:   llY = -2; rlY =  2; break;
+      case _ESFrame.walkB:   llY =  2; rlY = -2; break;
+      case _ESFrame.attackA: armY = -3; break;
+      case _ESFrame.attackB: armY = -3; muzzle = true; break;
+      case _ESFrame.pain:    break;
+      case _ESFrame.die:     break;
+    }
+    // Die: collapsed heap
+    if (f == _ESFrame.die) {
+      b(4, 19, 22, 6, torso);  b(4, 21, 9,  9, leg);
+      b(16, 21, 9,  9, leg);   b(3, 27, 26, 3, boot);
+      b(19, 14, 10, 8, helmet); b(21, 16, 6, 4, visor);
+      b(22, 17, 2,  2, const ui.Color(0xFF330000));
+      return;
+    }
+    // Pain: body flash
+    if (f == _ESFrame.pain) {
+      final flash = ui.Color.fromARGB(255,
+        ((torso.r * 255 + 0xCC) ~/ 2).clamp(0, 255),
+        ((torso.g * 255 + 0xCC) ~/ 2).clamp(0, 255),
+        ((torso.b * 255 + 0xCC) ~/ 2).clamp(0, 255));
+      b(11, 2, 10, 8, helmetHi); b(13, 4, 6, 4, visor);
+      b(14, 5, 2, 2, eye);       b(18, 5, 2, 2, eye);
+      b(14, 11, 4, 2, helmet);
+      b(9, 13, 14, 11, flash);   b(5, 13, 4, 5, flash);
+      b(23, 13, 4, 5, flash);    b(5, 18, 4, 8, arm);
+      b(23, 18, 4, 8, arm);      b(25, 20, 7, 3, gunB);
+      b(10, 24, 5, 7, leg);      b(17, 24, 5, 7, leg);
+      b(9, 30, 7, 2, boot);      b(17, 30, 7, 2, boot);
+      return;
+    }
+    // Helmet
+    b(11, 2 + headY, 10, 8, helmet);
+    b(11, 2 + headY, 10, 2, helmetHi);
+    b(13, 4 + headY, 6,  4, visor);
+    b(14, 5 + headY, 2,  2, eye);
+    b(18, 5 + headY, 2,  2, eye);
+    b(14, 10 + headY, 4, 2, helmet);
+    // Shoulders + torso
+    b(5, 12, 7, 4, torso);  b(20, 12, 7, 4, torso);
+    b(9, 12, 14, 12, torso);
+    b(9, 12, 14, 1, ui.Color.fromARGB(70, 255, 255, 255)); // chest seam
+    // Arms
+    b(5, 16, 4, 9, arm);
+    b(23, 16 + armY, 4, 9, arm);
+    // Weapon
+    final gy = 18.0 + armY;
+    b(25, gy, 7, 3, gunB);  b(25, gy, 2, 3, gunHi);  b(30, gy + 1, 2, 1, gunHi);
+    if (muzzle) {
+      b(30, gy - 2, 3, 4, const ui.Color(0xFFFFFF00));
+      b(31, gy - 3, 2, 2, const ui.Color(0xFFFFFFFF));
+    }
+    // Guardian shoulder spikes
+    if (p == _ESPalette.guardian) {
+      b(5, 8, 3, 6, helmetHi);  b(24, 8, 3, 6, helmetHi);
+    }
+    // Legs + boots
+    b(10, 24 + llY, 5, 7, leg);  b(17, 24 + rlY, 5, 7, leg);
+    b(11, 24 + llY, 2, 7, ui.Color.fromARGB(40, 255, 255, 255));
+    b(18, 24 + rlY, 2, 7, ui.Color.fromARGB(40, 255, 255, 255));
+    b(9, 31 + llY, 7, 2, boot);  b(17, 31 + rlY, 7, 2, boot);
+  }
 }
+
+enum _ESPalette { grunt, shooter, guardian }
+enum _ESFrame   { idleA, idleB, walkA, walkB, attackA, attackB, pain, die }
 
 // Helper class for Colors since we don't import material
 class Colors {
