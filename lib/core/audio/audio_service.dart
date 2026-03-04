@@ -33,25 +33,44 @@ class AudioService {
   /// Pre-loading via `FlameAudio.audioCache` downloads the file using XHR
   /// and stores it as a Blob URL with the correct MIME type, which the browser
   /// accepts without issues.
+  ///
+  /// Note: This runs with a 10-second timeout. If assets fail to load, SFX
+  /// will still attempt to play but may encounter platform limitations.
   Future<void> init() async {
     if (_isInitialized) {
       LogService.info('AUDIO', 'ALREADY_INITIALIZED', {});
       return;
     }
 
-    // Pre-cache all SFX so FlameAudio.play() uses Blob URLs instead of
-    // raw asset paths (which Chrome rejects without Content-Type header).
-    await FlameAudio.audioCache.loadAll([
-      'audio/weapons/pistol_fire.wav',
-      'audio/weapons/shotgun_fire.wav',
-      'audio/weapons/reload.wav',
-      'audio/weapons/empty_clip.wav',
-      'audio/weapons/weapon_switch.wav',
-      'audio/weapons/change-weapon-sound.wav',
-    ]);
+    try {
+      // Pre-cache all SFX so FlameAudio.play() uses Blob URLs instead of
+      // raw asset paths (which Chrome rejects without Content-Type header).
+      // Timeout after 10 seconds — if files don't load in web, continue anyway
+      await FlameAudio.audioCache.loadAll([
+        'audio/weapons/pistol_fire.wav',
+        'audio/weapons/shotgun_fire.wav',
+        'audio/weapons/reload.wav',
+        'audio/weapons/empty_clip.wav',
+        'audio/weapons/weapon_switch.wav',
+        'audio/weapons/change-weapon-sound.wav',
+      ]).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          LogService.warning(
+            'AUDIO',
+            'ASSET_LOAD_TIMEOUT',
+            {'note': 'SFX assets did not load in time, continuing without pre-cache'},
+          );
+          return []; // Return empty list on timeout
+        },
+      );
 
-    _isInitialized = true;
-    LogService.info('AUDIO', 'SERVICE_INITIALIZED', {});
+      _isInitialized = true;
+      LogService.info('AUDIO', 'SERVICE_INITIALIZED', {});
+    } catch (e) {
+      LogService.error('AUDIO', 'INIT_FAILED', e);
+      _isInitialized = true; // Mark as initialized even on error
+    }
   }
 
   /// Play background music with fade-in effect
