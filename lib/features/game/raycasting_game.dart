@@ -69,16 +69,19 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     // Initialize Audio Service (non-blocking, runs in background)
     // Fire-and-forget: don't wait for audio pre-loading to complete
     // Game renders immediately while audio loads asynchronously
-    AudioService().init().then((_) {
-      AudioService().playBackgroundMusic(
-        'audio/musica_fondo/Vertical_Layering.mp3',
-        fadeInDuration: 1500,
-      );
-    }).onError((error, stack) {
-      if (error != null) {
-        LogService.error('AUDIO', 'INIT_FAILED', error as Object, stack);
-      }
-    });
+    AudioService()
+        .init()
+        .then((_) {
+          AudioService().playBackgroundMusic(
+            'audio/musica_fondo/Vertical_Layering.mp3',
+            fadeInDuration: 1500,
+          );
+        })
+        .onError((error, stack) {
+          if (error != null) {
+            LogService.error('AUDIO', 'INIT_FAILED', error as Object, stack);
+          }
+        });
 
     // World is already initialized by the LoadingScreen before this mounts.
 
@@ -182,43 +185,50 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
     );
     await add(_joystick!);
 
-    // ── Fire button — bottom-center-right, left of minimap ─────────────
-    // Minimap occupies bottom:16–166, right:16–166. All buttons use right>166
-    // so they sit to the LEFT of the minimap and never overlap it.
+    // ── Fire button — bottom-right corner ─────────────
+    // Moved to the absolute corner to free up center space for the 3D weapon
     _fireButton = HudButtonComponent(
       button: CircleComponent(
         radius: 42,
         paint: Paint()..color = const Color(0xAAFF2200),
       ),
-      margin: const EdgeInsets.only(right: 196, bottom: 24),
+      margin: const EdgeInsets.only(
+        right: 36,
+        bottom: 36,
+      ), // Aumentado para separarse más de los bordes
       priority: 10,
       onPressed: () => _touchFireHeld = true,
       onReleased: () => _touchFireHeld = false,
     );
     await add(_fireButton!);
 
-    // ── Reload button — same row as fire, further left ───────────────────
-    // Fire left-edge is at right:280 (196+84); reload right-edge at right:300 → 20px gap.
+    // ── Reload button — top-left diagonal from fire button ────────
+    // Forms an ergonomic arc for the thumb, moved further away
     _reloadButton = HudButtonComponent(
       button: CircleComponent(
         radius: 26,
         paint: Paint()..color = const Color(0xAA0088FF),
       ),
-      margin: const EdgeInsets.only(right: 300, bottom: 24),
+      margin: const EdgeInsets.only(
+        right: 115,
+        bottom: 125,
+      ), // Movido más arriba y más a la izquierda
       priority: 10,
       onPressed: () => weaponBloc.add(const WeaponReloaded()),
       onReleased: () {},
     );
     await add(_reloadButton!);
 
-    // ── Weapon cycle — above fire button, same column ────────────────────
-    // Fire top-edge is at bottom:108 (24+84); switch bottom-edge at bottom:124 → 16px gap.
+    // ── Weapon cycle — left of fire button ──────────────────────────
     _switchWeaponButton = HudButtonComponent(
       button: CircleComponent(
         radius: 22,
         paint: Paint()..color = const Color(0xAA00CC66),
       ),
-      margin: const EdgeInsets.only(right: 196, bottom: 124),
+      margin: const EdgeInsets.only(
+        right: 144,
+        bottom: 44,
+      ), // Movido más a la izquierda
       priority: 10,
       onPressed: () {
         const all = [
@@ -291,7 +301,7 @@ class RaycastingGame extends FlameGame with KeyboardEvents {
         // Let's check. Joystick up is usually negative Y.
         // So -Y is forward.
         moveStep += -joyDelta.y;
-        rotStep += joyDelta.x * 2.0; // Turn faster with joystick
+        rotStep += joyDelta.x * 1.0; // Reduced sensitivity by half (was 2.0)
       }
     }
 

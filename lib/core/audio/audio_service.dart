@@ -4,8 +4,17 @@ import 'package:raycasting_game/core/logging/log_service.dart';
 
 /// Centralized Audio Management Service (Singleton)
 ///
-/// Handles background music and SFX playback with proper lifecycle management.
-/// Supports volume control, fade in/out, and resource pooling.
+/// Architecture:
+/// - BGM  → Dedicated AudioPlayer with ReleaseMode.loop + AudioContext
+///           set to duckOthers=false / mixWithOthers on every platform.
+/// - SFX  → AudioPool per sound (pre-warmed, shares same AudioContext).
+///
+/// Key insight: On Android, any AudioPlayer that requests
+/// AudioFocus.GAIN will pause other players.  We avoid this by:
+///   1. Setting a global AudioContext that uses AndroidAudioFocus.gainTransientMayDuck
+///      (never GAIN) for the BGM player.
+///   2. Creating every AudioPool *after* the global context is set so
+///      they inherit it.
 class AudioService {
   static final AudioService _instance = AudioService._internal();
 
@@ -13,29 +22,25 @@ class AudioService {
 
   AudioService._internal();
 
-  // Background music player (always single instance)
-  AudioPlayer? _backgroundMusic;
+  // Dedicated BGM player (never shares pool logic)
+  AudioPlayer? _bgmPlayer;
 
-  // Volume settings (0.0 = silent, 1.0 = loud)
-  double _masterVolume = 1.0;
-  // Music is intentionally quieter so SFX (weapons, hits) are always audible.
+  // SFX pools — one AudioPool per frequently-fired sound
+  AudioPool? _pistolFirePool;
+  AudioPool? _shotgunFirePool;
+  AudioPool? _reloadPool;
+  AudioPool? _emptyClipPool;
+  AudioPool? _weaponSwitchPool;
+
+  // Volume settings
+  double _masterVolume = 1;
   double _musicVolume = 0.3;
-  // SFX at full volume — must punch through background music clearly.
-  double _sfxVolume = 1.0;
+  double _sfxVolume = 1;
 
-  // Initialization flag
   bool _isInitialized = false;
 
-  /// Initialize audio service and preload all SFX assets.
-  ///
-  /// On Flutter Web, `AssetSource` is served without a `Content-Type` header,
-  /// causing Chrome to reject `.wav` files (`Format error Code 4`).
-  /// Pre-loading via `FlameAudio.audioCache` downloads the file using XHR
-  /// and stores it as a Blob URL with the correct MIME type, which the browser
-  /// accepts without issues.
-  ///
-  /// Note: This runs with a 10-second timeout. If assets fail to load, SFX
-  /// will still attempt to play but may encounter platform limitations.
+  /// Initialize service: configure AudioContext globally, create BGM player
+  /// and pre-warm all SFX pools.
   Future<void> init() async {
     if (_isInitialized) {
       LogService.info('AUDIO', 'ALREADY_INITIALIZED', {});
@@ -43,156 +48,153 @@ class AudioService {
     }
 
     try {
-      // Pre-cache all SFX so FlameAudio.play() uses Blob URLs instead of
-      // raw asset paths (which Chrome rejects without Content-Type header).
-      // Timeout after 10 seconds — if files don't load in web, continue anyway
-      await FlameAudio.audioCache.loadAll([
-        'audio/weapons/pistol_fire.wav',
-        'audio/weapons/shotgun_fire.wav',
-        'audio/weapons/reload.wav',
-        'audio/weapons/empty_clip.wav',
-        'audio/weapons/weapon_switch.wav',
-        'audio/weapons/change-weapon-sound.wav',
-      ]).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          LogService.warning(
-            'AUDIO',
-            'ASSET_LOAD_TIMEOUT',
-            {'note': 'SFX assets did not load in time, continuing without pre-cache'},
-          );
-          return []; // Return empty list on timeout
-        },
+      // ── 1. Configure global AudioContext ──────────────────────────────
+      // This affects EVERY AudioPlayer created after this point,
+      // including the internals of AudioPool.
+      //
+      // Android: gainTransientMayDuck → allows background music to keep
+      //          playing at reduced volume; we bump it back immediately.
+      //          isSpeakerphoneOn / staysActiveAfterStop keep the session alive.
+      // iOS    : mixWithOthers → never interrupts other audio.
+      AudioPlayer.global.setAudioContext(
+        AudioContext(
+          android: AudioContextAndroid(
+            audioFocus: AndroidAudioFocus.gainTransientMayDuck,
+            usageType: AndroidUsageType.game,
+            contentType: AndroidContentType.music,
+            isSpeakerphoneOn: false,
+          ),
+          iOS: AudioContextIOS(
+            options: {
+              AVAudioSessionOptions.mixWithOthers,
+            },
+            category: AVAudioSessionCategory.playback,
+          ),
+        ),
+      );
+
+      // ── 2. Create dedicated BGM player ────────────────────────────────
+      _bgmPlayer = AudioPlayer()..setReleaseMode(ReleaseMode.loop);
+      await _bgmPlayer!.setVolume(_musicVolume * _masterVolume);
+
+      // ── 3. Pre-warm SFX AudioPools ────────────────────────────────────
+      _pistolFirePool = await AudioPool.create(
+        source: AssetSource('audio/weapons/pistol_fire.wav'),
+        maxPlayers: 4,
+      );
+      _shotgunFirePool = await AudioPool.create(
+        source: AssetSource('audio/weapons/shotgun_fire.wav'),
+        maxPlayers: 2,
+      );
+      _reloadPool = await AudioPool.create(
+        source: AssetSource('audio/weapons/reload.wav'),
+        maxPlayers: 2,
+      );
+      _emptyClipPool = await AudioPool.create(
+        source: AssetSource('audio/weapons/empty_clip.wav'),
+        maxPlayers: 2,
+      );
+      _weaponSwitchPool = await AudioPool.create(
+        source: AssetSource('audio/weapons/weapon_switch.wav'),
+        maxPlayers: 2,
       );
 
       _isInitialized = true;
       LogService.info('AUDIO', 'SERVICE_INITIALIZED', {});
-    } catch (e) {
+    } on Exception catch (e) {
       LogService.error('AUDIO', 'INIT_FAILED', e);
-      _isInitialized = true; // Mark as initialized even on error
+      _isInitialized = true; // allow game to continue without audio
     }
   }
 
-  /// Play background music with fade-in effect
-  ///
-  /// Stops current music and starts the new one.
-  /// [assetPath] = path relative to assets/ (e.g., 'audio/background.mp3')
-  /// [volume] = 0.0-1.0 (default uses _musicVolume setting)
-  /// [fadeInDuration] = fade-in time in milliseconds (default 1000ms)
+  /// Play background music (looping).
+  /// [assetPath] is relative to assets/ (e.g. 'audio/musica_fondo/Vertical_Layering.mp3')
   Future<void> playBackgroundMusic(
     String assetPath, {
     double? volume,
     int fadeInDuration = 1000,
   }) async {
+    if (_bgmPlayer == null) return;
     try {
-      // Stop and dispose old music
-      await _backgroundMusic?.stop();
-      await _backgroundMusic?.dispose();
-
-      // Create new player
-      _backgroundMusic = AudioPlayer();
-
-      final effectiveVolume = volume ?? _musicVolume;
-      final finalVolume = effectiveVolume * _masterVolume;
-
-      // Set to silent first
-      await _backgroundMusic!.setVolume(0.0);
-
-      // Load and play
-      await _backgroundMusic!.setSource(AssetSource(assetPath));
-      await _backgroundMusic!.setReleaseMode(ReleaseMode.loop);
-      await _backgroundMusic!.resume();
-
-      // Fade in
-      await _fadeInVolume(
-        _backgroundMusic!,
-        finalVolume,
-        fadeInDuration,
-      );
-
+      final finalVolume = (volume ?? _musicVolume) * _masterVolume;
+      await _bgmPlayer!.setVolume(finalVolume);
+      await _bgmPlayer!.setSource(AssetSource(assetPath));
+      await _bgmPlayer!.resume();
       LogService.info('AUDIO', 'BACKGROUND_MUSIC_STARTED', {
         'asset': assetPath,
         'volume': finalVolume.toStringAsFixed(2),
       });
-    } catch (e) {
+    } on Exception catch (e) {
       LogService.error('AUDIO', 'BACKGROUND_MUSIC_LOAD_ERROR', e);
     }
   }
 
-  /// Play sound effect using FlameAudio (Web-safe).
-  ///
-  /// FlameAudio manages player lifecycle correctly on Flutter Web,
-  /// avoiding the `MEDIA_ELEMENT_ERROR: Format error` that occurs
-  /// when manually reusing AudioPlayers with released sources.
-  /// [assetPath] = path relative to assets/ (e.g., 'audio/weapons/pistol_fire.wav')
-  /// [volume] = 0.0-1.0 (default uses _sfxVolume setting)
+  /// Play a weapon sound effect using the per-sound AudioPool.
+  /// [assetPath] relative to assets/audio/ (e.g. 'weapons/pistol_fire.wav')
   Future<void> playSFX(
     String assetPath, {
     double? volume,
   }) async {
+    if (!_isInitialized) return;
+
     try {
       final finalVolume = (volume ?? _sfxVolume) * _masterVolume;
-      // FlameAudio.play() creates a fresh player each time,
-      // properly loading the asset from cache and releasing on completion.
-      await FlameAudio.play(assetPath, volume: finalVolume);
+
+      final pool = _poolForPath(assetPath);
+      if (pool != null) {
+        await pool.start(volume: finalVolume);
+      } else {
+        // Fallback for any unregistered sound
+        await FlameAudio.play(assetPath, volume: finalVolume);
+      }
 
       LogService.info('AUDIO', 'SFX_PLAYED', {
         'asset': assetPath,
         'volume': finalVolume.toStringAsFixed(2),
       });
-    } catch (e) {
+    } on Exception catch (e) {
       LogService.error('AUDIO', 'SFX_PLAY_ERROR', e);
     }
   }
 
-  /// Stop background music with fade-out effect
-  ///
-  /// [fadeOutDuration] = fade-out time in milliseconds (default 500ms)
+  AudioPool? _poolForPath(String path) {
+    if (path.contains('pistol_fire')) return _pistolFirePool;
+    if (path.contains('shotgun_fire')) return _shotgunFirePool;
+    if (path.contains('reload')) return _reloadPool;
+    if (path.contains('empty_clip')) return _emptyClipPool;
+    if (path.contains('weapon_switch') || path.contains('change-weapon')) {
+      return _weaponSwitchPool;
+    }
+    return null;
+  }
+
+  /// Stop the background music.
   Future<void> stopBackgroundMusic({int fadeOutDuration = 500}) async {
-    if (_backgroundMusic == null) return;
-
     try {
-      await _fadeOutVolume(_backgroundMusic!, fadeOutDuration);
-      await _backgroundMusic!.stop();
-      await _backgroundMusic!.dispose();
-      _backgroundMusic = null;
-
+      await _bgmPlayer?.stop();
       LogService.info('AUDIO', 'BACKGROUND_MUSIC_STOPPED', {});
-    } catch (e) {
+    } on Exception catch (e) {
       LogService.error('AUDIO', 'BACKGROUND_MUSIC_STOP_ERROR', e);
     }
   }
 
-  /// Update master volume (affects all audio)
-  ///
-  /// [volume] = 0.0-1.0
+  /// Update master volume.
   void setMasterVolume(double volume) {
     _masterVolume = volume.clamp(0.0, 1.0);
-
-    // Apply to current background music
-    if (_backgroundMusic != null) {
-      final musicVol = _musicVolume * _masterVolume;
-      _backgroundMusic!.setVolume(musicVol).ignore();
-    }
-
+    _bgmPlayer?.setVolume(_musicVolume * _masterVolume).ignore();
     LogService.info('AUDIO', 'MASTER_VOLUME_CHANGED', {
       'volume': _masterVolume.toStringAsFixed(2),
     });
   }
 
-  /// Update music volume (only affects new music)
-  ///
-  /// [volume] = 0.0-1.0
   void setMusicVolume(double volume) {
     _musicVolume = volume.clamp(0.0, 1.0);
+    _bgmPlayer?.setVolume(_musicVolume * _masterVolume).ignore();
     LogService.info('AUDIO', 'MUSIC_VOLUME_CHANGED', {
       'volume': _musicVolume.toStringAsFixed(2),
     });
   }
 
-  /// Update SFX volume (only affects new SFX)
-  ///
-  /// [volume] = 0.0-1.0
   void setSFXVolume(double volume) {
     _sfxVolume = volume.clamp(0.0, 1.0);
     LogService.info('AUDIO', 'SFX_VOLUME_CHANGED', {
@@ -200,63 +202,26 @@ class AudioService {
     });
   }
 
-  /// Get current master volume
   double get masterVolume => _masterVolume;
-
-  /// Get current music volume
   double get musicVolume => _musicVolume;
-
-  /// Get current SFX volume
   double get sfxVolume => _sfxVolume;
 
-  /// Dispose all audio resources (call on app shutdown).
+  /// Release all audio resources.
   Future<void> dispose() async {
     try {
-      await _backgroundMusic?.stop();
-      await _backgroundMusic?.dispose();
-      _backgroundMusic = null;
-
-      // FlameAudio manages its own player lifecycle — no manual cleanup needed.
+      await _bgmPlayer?.stop();
+      await _bgmPlayer?.dispose();
+      _bgmPlayer = null;
+      await _pistolFirePool?.dispose();
+      await _shotgunFirePool?.dispose();
+      await _reloadPool?.dispose();
+      await _emptyClipPool?.dispose();
+      await _weaponSwitchPool?.dispose();
       await FlameAudio.audioCache.clearAll();
-
       _isInitialized = false;
       LogService.info('AUDIO', 'SERVICE_DISPOSED', {});
-    } catch (e) {
+    } on Exception catch (e) {
       LogService.error('AUDIO', 'DISPOSE_ERROR', e);
-    }
-  }
-
-  /// Helper: Fade in volume smoothly
-  Future<void> _fadeInVolume(
-    AudioPlayer player,
-    double targetVolume,
-    int durationMs,
-  ) async {
-    const steps = 20;
-    final stepDuration = Duration(milliseconds: durationMs ~/ steps);
-    final volumeStep = targetVolume / steps;
-
-    for (var i = 1; i <= steps; i++) {
-      await Future.delayed(stepDuration);
-      final vol = (volumeStep * i).clamp(0.0, 1.0);
-      await player.setVolume(vol);
-    }
-  }
-
-  /// Helper: Fade out volume smoothly
-  Future<void> _fadeOutVolume(
-    AudioPlayer player,
-    int durationMs,
-  ) async {
-    const steps = 10;
-    final stepDuration = Duration(milliseconds: durationMs ~/ steps);
-    final currentVolume = 1.0; // Assume was at full volume
-    final volumeStep = currentVolume / steps;
-
-    for (var i = steps - 1; i >= 0; i--) {
-      await Future.delayed(stepDuration);
-      final vol = (volumeStep * i).clamp(0.0, 1.0);
-      await player.setVolume(vol);
     }
   }
 }

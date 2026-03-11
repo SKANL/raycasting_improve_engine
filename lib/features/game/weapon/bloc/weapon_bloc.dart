@@ -11,8 +11,8 @@ part 'weapon_state.dart';
 /// Manages weapon state and firing logic
 class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
   WeaponBloc({AudioService? audioService})
-      : _audioService = audioService ?? AudioService(),
-        super(const WeaponState()) {
+    : _audioService = audioService ?? AudioService(),
+      super(const WeaponState()) {
     on<WeaponFired>(_onWeaponFired);
     on<WeaponReloaded>(_onWeaponReloaded);
     on<WeaponSwitched>(_onWeaponSwitched);
@@ -28,7 +28,7 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
       });
       // Play empty clip sound if ammo is empty
       if (state.currentAmmo <= 0) {
-        _audioService.playSFX('audio/weapons/empty_clip.wav', volume: 0.6);
+        _audioService.playSFX('weapons/empty_clip.wav', volume: 0.6);
       }
       return;
     }
@@ -71,7 +71,7 @@ class WeaponBloc extends Bloc<WeaponEvent, WeaponState> {
     });
 
     // Play weapon switch sound
-    _audioService.playSFX('audio/weapons/weapon_switch.wav', volume: 0.6);
+    _audioService.playSFX('weapons/weapon_switch.wav', volume: 0.6);
 
     emit(
       WeaponState(

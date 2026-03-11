@@ -60,17 +60,17 @@ android {
         create("production") {
             dimension = "default"
             applicationIdSuffix = ""
-            manifestPlaceholders["appName"] = "Raycasting Game"
+            manifestPlaceholders["appName"] = "ASEPTIC"
         }
         create("staging") {
             dimension = "default"
             applicationIdSuffix = ".stg"
-            manifestPlaceholders["appName"] = "[STG] Raycasting Game"
+            manifestPlaceholders["appName"] = "[STG] ASEPTIC"
         }
         create("development") {
             dimension = "default"
             applicationIdSuffix = ".dev"
-            manifestPlaceholders["appName"] = "[DEV] Raycasting Game"
+            manifestPlaceholders["appName"] = "ASEPTIC"
         }
     }
 

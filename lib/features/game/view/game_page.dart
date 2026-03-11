@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:raycasting_game/core/audio/audio_service.dart';
 import 'package:raycasting_game/features/core/input/bloc/input_bloc.dart';
 import 'package:raycasting_game/features/core/level/bloc/bloc.dart';
+import 'package:raycasting_game/features/core/level/view/death_screen.dart';
 import 'package:raycasting_game/features/core/level/view/victory_screen.dart';
 import 'package:raycasting_game/features/core/perspective/bloc/perspective_bloc.dart';
 import 'package:raycasting_game/features/core/world/bloc/world_bloc.dart';
@@ -117,6 +118,18 @@ class _GameViewState extends State<GameView> {
               // 3. Victory Screen (when player survives 2 minutes)
               if (levelState.status == LevelStatus.victory)
                 const VictoryScreen(),
+
+              // 4. Death Screen (when player dies)
+              BlocBuilder<WorldBloc, WorldState>(
+                buildWhen: (prev, curr) =>
+                    prev.isPlayerDead != curr.isPlayerDead,
+                builder: (context, worldState) {
+                  if (worldState.isPlayerDead) {
+                    return const DeathScreen();
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
             ],
           );
         },

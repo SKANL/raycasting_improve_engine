@@ -72,28 +72,31 @@ class _VictoryScreenState extends State<VictoryScreen>
                   const Icon(
                     Icons.emoji_events_rounded,
                     color: Color(0xFFFFD700),
-                    size: 96,
+                    size: 64, // Reducido de 96 a 64
                   ),
-                  const SizedBox(height: 24),
-
+                  const SizedBox(height: 16), // Reducido de 24
                   // Main Title
-                  Text(
-                    '¡SOBREVIVISTE!',
-                    style: GoogleFonts.outfit(
-                      fontSize: 48,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFFFD700),
-                      letterSpacing: 6,
-                      shadows: [
-                        const Shadow(
-                          color: Color(0xFFFFCC00),
-                          blurRadius: 32,
-                        ),
-                      ],
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '¡SOBREVIVISTE!',
+                      style: GoogleFonts.outfit(
+                        fontSize:
+                            40, // Reducido de 48 a 40 y respaldado por FittedBox
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFFFFD700),
+                        letterSpacing: 4, // Reducido de 6
+                        shadows: [
+                          const Shadow(
+                            color: Color(0xFFFFCC00),
+                            blurRadius: 24,
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   // Divider
                   Row(
@@ -114,19 +117,18 @@ class _VictoryScreenState extends State<VictoryScreen>
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
 
                   Text(
-                    'Sobreviviste 2 minutos en la dungeon.',
+                    'Sobreviviste 3 minutos en la dungeon.', // Actualizado a 3 minutos
                     style: GoogleFonts.outfit(
-                      fontSize: 18,
+                      fontSize: 16, // Reducido de 18 a 16
                       color: Colors.white60,
                       letterSpacing: 1,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 48),
-
+                  const SizedBox(height: 32), // Reducido de 48 a 32
                   // Retry Button
                   _RetryButton(onPressed: () => _onRetry(context)),
                 ],

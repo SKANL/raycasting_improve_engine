@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:raycasting_game/features/game/view/game_page.dart';
 import 'menu_game.dart';
@@ -176,15 +178,49 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
               ),
               textAlign: TextAlign.center,
             ),
-            content: const Text(
-              'Desarrolladores:\nJose Gaspar Anguas Ku\nIsaias Bernal Padron\n\nAudio y Videos:\nJuan Manuel Duarte Tah\nJoel Antonio Pool Martinez',
-              style: TextStyle(
-                color: Color(0xFFB0BEC5),
-                fontFamily: 'Courier Prime',
-                fontSize: 16,
-                height: 1.5,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text(
+                    'Desarrolladores:',
+                    style: TextStyle(
+                      color: Color(0xFFFFFFFF),
+                      fontFamily: 'Courier Prime',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Jose Gaspar Anguas Ku\nIsaias Bernal Padron',
+                    style: TextStyle(
+                      color: Color(0xFFB0BEC5),
+                      fontFamily: 'Courier Prime',
+                      fontSize: 15,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'Audio y Videos:',
+                    style: TextStyle(
+                      color: Color(0xFFFFFFFF),
+                      fontFamily: 'Courier Prime',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    'Juan Manuel Duarte Tah\nJoel Antonio Pool Martinez',
+                    style: TextStyle(
+                      color: Color(0xFFB0BEC5),
+                      fontFamily: 'Courier Prime',
+                      fontSize: 15,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
             actionsAlignment: MainAxisAlignment.center,
             actions: [
@@ -204,21 +240,12 @@ class _MenuPageState extends State<MenuPage> with TickerProviderStateMixin {
       );
     } else {
       // SALIR
-      final labels = ['INICIAR', 'CRÉDITOS', 'SALIR'];
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${labels[index]} (No disponible)',
-            style: const TextStyle(
-              color: Color(0xFFFFFFFF),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          backgroundColor: const Color(0xFF0A0E14),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 1),
-        ),
-      );
+      _audioPlayer.stop();
+      if (Platform.isAndroid || Platform.isIOS) {
+        SystemNavigator.pop();
+      } else {
+        exit(0);
+      }
     }
   }
 

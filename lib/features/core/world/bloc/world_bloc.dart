@@ -54,16 +54,14 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   int _enemyCounter = 0;
   static const double _corpseLifetime = 3.0;
 
-  // --- Wave / Difficulty Scaling ---
-  // Wave advances every 5 kills.  Wave 0 = easiest, no hard cap.
-  // Spawn interval and max-alive enemies both scale with wave.
-  int _waveNumber = 0;
-  int _killCount = 0;
-  static const int _killsPerWave = 5;
+  // --- Time-based Difficulty Scaling ---
+  // _survivalElapsed tracks how many seconds have passed in the survival session.
+  // Shooters unlock at 60s (1 min elapsed), Guardians at 120s (2 min elapsed).
+  double _survivalElapsed = 0.0;
 
-  // Dynamic spawn config (re-computed from wave each tick)
-  double get _spawnInterval => math.max(2.0, 5.0 - _waveNumber * 0.4);
-  int get _maxAliveEnemies => math.min(14, 4 + _waveNumber * 2);
+  // Spawn interval and max-alive enemies (fixed for survival mode)
+  static const double _spawnInterval = 5.0;
+  static const int _maxAliveEnemies = 10;
 
   // OPT: AI time-slicing — full FSM/LOS at 20 Hz, velocity applied at 60 Hz.
   double _aiAccumulator = 0.0;
@@ -499,14 +497,6 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
       for (final result in damageResults) {
         if (result.died) {
           newEffects.add(EnemyKilledEffect(result.entityId));
-          _killCount++;
-          if (_killCount % _killsPerWave == 0) {
-            _waveNumber++;
-            LogService.info('WORLD', 'WAVE_UP', {
-              'wave': _waveNumber,
-              'kills': _killCount,
-            });
-          }
         }
       }
     }
@@ -771,23 +761,18 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
     // 9. Update Animations (Advance frames)
     updatedEntities = _animationSystem.update(event.dt, updatedEntities);
 
-    // 10. Process Death Effects from DamageResults + advance wave counter
+    // 10. Process Death Effects from DamageResults
     for (final res in damageResults) {
       if (res.died) {
         newEffects.add(EnemyKilledEffect(res.entityId));
-        _killCount++;
-        if (_killCount % _killsPerWave == 0) {
-          _waveNumber++;
-          LogService.info('WORLD', 'WAVE_UP', {
-            'wave': _waveNumber,
-            'kills': _killCount,
-          });
-        }
       }
     }
 
-    // 11. Survival Spawn: purge corpses and spawn new enemies
+    // 11. Survival Spawn: accumulate elapsed time + purge corpses + spawn
     _spawnTimer += event.dt;
+    if (state.status == WorldStatus.active) {
+      _survivalElapsed += event.dt;
+    }
 
     // Purge corpses dead for > _corpseLifetime seconds (O(n) on ≤10 enemies)
     // OPT: Reuse `now` from top of tick — no extra DateTime allocation.
@@ -996,19 +981,21 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   /// Sprite atlas Y-offsets (128 × 384 atlas):
   ///   Grunt    → Y   0   Shooter → Y 128   Guardian → Y 256
   List<GameComponent> _buildEnemyComponents() {
-    // Wave-gated enemy type selection
+    // Time-gated enemy type selection:
+    //   0–60s   → only Grunt
+    //   60–120s → Grunt (60%) + Shooter (40%)
+    //   120s+   → Grunt (40%) + Shooter (35%) + Guardian (25%)
     final EnemyType type;
-    if (_waveNumber <= 1) {
+    final rng = math.Random();
+    if (_survivalElapsed < 60) {
       type = EnemyType.grunt;
-    } else if (_waveNumber <= 3) {
-      type = math.Random().nextDouble() < 0.70
-          ? EnemyType.grunt
-          : EnemyType.shooter;
+    } else if (_survivalElapsed < 120) {
+      type = rng.nextDouble() < 0.60 ? EnemyType.grunt : EnemyType.shooter;
     } else {
-      final roll = math.Random().nextDouble();
-      if (roll < 0.50) {
+      final roll = rng.nextDouble();
+      if (roll < 0.40) {
         type = EnemyType.grunt;
-      } else if (roll < 0.80) {
+      } else if (roll < 0.75) {
         type = EnemyType.shooter;
       } else {
         type = EnemyType.guardian;
@@ -1170,9 +1157,8 @@ class WorldBloc extends Bloc<WorldEvent, WorldState> {
   /// 'The native object of SkImage was disposed' assertions.
   /// We rely on the GC to clean them up once WorldState drops the references.
   void _onLevelCleanup(LevelCleanup event, Emitter<WorldState> emit) {
-    // Reset wave / difficulty counters so the next level starts fresh.
-    _waveNumber = 0;
-    _killCount = 0;
+    // Reset survival elapsed time so the next session starts fresh.
+    _survivalElapsed = 0.0;
     _spawnTimer = 0.0;
     _enemyCounter = 0;
     // Immediately emit empty state to clear the world.

@@ -28,6 +28,7 @@ dependencies:
   talker: ^5.1.12
   talker_flutter: ^5.1.12
   vector_math: ^2.2.0
+  uuid: any
   # Menu Dependencies
   video_player: ^2.8.6
   hydrated_bloc: any
@@ -41,6 +42,14 @@ dev_dependencies:
   mockingjay: ^2.0.0
   mocktail: ^1.0.4
   very_good_analysis: ^10.0.0
+  flutter_launcher_icons: any
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
 
 flutter:
   generate: true
@@ -48,6 +57,7 @@ flutter:
   assets:
     - assets/audio/
     - assets/audio/musica_fondo/
+    - assets/audio/weapons/
     - assets/images/
     - assets/video/
     - assets/licenses/poppins/

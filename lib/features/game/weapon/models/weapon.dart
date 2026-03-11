@@ -17,8 +17,8 @@ class Weapon extends Equatable {
     this.projectileSpeed = 12.0,
     this.maxBounces = 0,
     this.muzzleFlashTextureIndex = 0,
-    this.fireSound = 'audio/weapons/pistol_fire.wav',
-    this.reloadSound = 'audio/weapons/reload.wav',
+    this.fireSound = 'weapons/pistol_fire.wav',
+    this.reloadSound = 'weapons/reload.wav',
   });
 
   /// Unique weapon identifier
@@ -98,8 +98,8 @@ class Weapon extends Equatable {
     fireRate: 2.0,
     range: 20.0,
     muzzleFlashTextureIndex: 0,
-    fireSound: 'audio/weapons/pistol_fire.wav',
-    reloadSound: 'audio/weapons/reload.wav',
+    fireSound: 'weapons/pistol_fire.wav',
+    reloadSound: 'weapons/reload.wav',
   );
 
   /// Wide spread, close-range devastation. 7 pellets per shot.
@@ -113,8 +113,8 @@ class Weapon extends Equatable {
     pellets: 7,
     spreadAngle: 0.12, // ~7 degrees half-angle
     muzzleFlashTextureIndex: 1,
-    fireSound: 'audio/weapons/shotgun_fire.wav',
-    reloadSound: 'audio/weapons/reload.wav',
+    fireSound: 'weapons/shotgun_fire.wav',
+    reloadSound: 'weapons/reload.wav',
   );
 
   /// Fast automatic hitscan. Low spread, medium damage.
@@ -127,8 +127,8 @@ class Weapon extends Equatable {
     range: 30.0,
     spreadAngle: 0.02,
     muzzleFlashTextureIndex: 2,
-    fireSound: 'audio/weapons/pistol_fire.wav', // Using pistol sound as fallback
-    reloadSound: 'audio/weapons/reload.wav',
+    fireSound: 'weapons/pistol_fire.wav', // Using pistol sound as fallback
+    reloadSound: 'weapons/reload.wav',
   );
 
   /// Fires a physical projectile that bounces off walls up to 4 times.
@@ -144,8 +144,8 @@ class Weapon extends Equatable {
     projectileSpeed: 20.0,
     maxBounces: 4,
     muzzleFlashTextureIndex: 3,
-    fireSound: 'audio/weapons/pistol_fire.wav',
-    reloadSound: 'audio/weapons/reload.wav',
+    fireSound: 'weapons/pistol_fire.wav',
+    reloadSound: 'weapons/reload.wav',
   );
 
   /// Rapid-fire bouncing rifle. Bullets ricochet 6 times.
@@ -161,7 +161,7 @@ class Weapon extends Equatable {
     projectileSpeed: 25.0,
     maxBounces: 6,
     muzzleFlashTextureIndex: 4,
-    fireSound: 'audio/weapons/pistol_fire.wav',
-    reloadSound: 'audio/weapons/reload.wav',
+    fireSound: 'weapons/pistol_fire.wav',
+    reloadSound: 'weapons/reload.wav',
   );
 }

@@ -19,7 +19,7 @@ class LevelBloc extends Bloc<LevelEvent, LevelState> {
     emit(
       state.copyWith(
         status: LevelStatus.playing,
-        timeRemaining: 120.0,
+        timeRemaining: 180.0,
         enemiesKilled: 0,
         sessionSeed: seed,
       ),
@@ -29,7 +29,7 @@ class LevelBloc extends Bloc<LevelEvent, LevelState> {
   void _onSurvivalTick(SurvivalTick event, Emitter<LevelState> emit) {
     if (state.status != LevelStatus.playing) return;
 
-    final newTime = (state.timeRemaining - event.dt).clamp(0.0, 120.0);
+    final newTime = (state.timeRemaining - event.dt).clamp(0.0, 180.0);
 
     // Victoria: timer llegó a 0
     if (newTime <= 0) {
@@ -58,7 +58,7 @@ class LevelBloc extends Bloc<LevelEvent, LevelState> {
     emit(
       state.copyWith(
         status: LevelStatus.playing,
-        timeRemaining: 120.0,
+        timeRemaining: 180.0,
         enemiesKilled: 0,
         sessionSeed: seed,
       ),

@@ -42,9 +42,9 @@ class GameHud extends StatelessWidget {
                       Colors.transparent,
                       Colors.red.withValues(
                         alpha: 0.6 * intensity,
-                      ), // Hard clamp to blood red outer ring
+                      ),
                     ],
-                    stops: const [0.65, 1.0], // Leave 65% of center transparent
+                    stops: const [0.65, 1.0],
                   ),
                 ),
               ),
@@ -52,24 +52,23 @@ class GameHud extends StatelessWidget {
           },
         ),
 
-        // Top-left: Health and stats
+        // ─── TOP-LEFT: Health bar ────────────────────────────────────────────
         Positioned(
           top: 16,
           left: 16,
           child: _HealthDisplay(),
         ),
 
-        // Top-right: Level indicator + Ammo counter (vertical column)
+        // ─── TOP-LEFT: Timer + Kills in horizontal row ───────────────────────
+        // Positioned below the health bar (~96px from top).
         Positioned(
-          top: 16,
-          right: 16,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          top: 96,
+          left: 16,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               // Survival Timer
               BlocBuilder<LevelBloc, LevelState>(
-                // Optimización: reconstruir solo 1 vez/s, no 60 veces/s
                 buildWhen: (prev, curr) =>
                     prev.timeRemaining.toInt() != curr.timeRemaining.toInt(),
                 builder: (context, levelState) {
@@ -78,10 +77,10 @@ class GameHud extends StatelessWidget {
                   final ss = (t.toInt() % 60).toString().padLeft(2, '0');
                   final isLow = t <= 30;
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
+                    margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.65),
@@ -99,7 +98,7 @@ class GameHud extends StatelessWidget {
                         color: isLow
                             ? const Color(0xFFFF5050)
                             : const Color(0xFFFFD700),
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 2,
                       ),
@@ -113,10 +112,9 @@ class GameHud extends StatelessWidget {
                     prev.enemiesKilled != curr.enemiesKilled,
                 builder: (context, levelState) {
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.65),
@@ -132,14 +130,14 @@ class GameHud extends StatelessWidget {
                         const Icon(
                           Icons.bolt,
                           color: Color(0xFFFF6666),
-                          size: 14,
+                          size: 13,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 3),
                         Text(
                           '${levelState.enemiesKilled}',
                           style: const TextStyle(
                             color: Color(0xFFFF8888),
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1,
                           ),
@@ -149,66 +147,31 @@ class GameHud extends StatelessWidget {
                   );
                 },
               ),
-              // Ammo counter
-              _AmmoDisplay(),
             ],
           ),
         ),
 
-        // Center: Crosshair
-        const Center(
-          child: _Crosshair(),
-        ),
-
-        // Bottom-right: Minimap
+        // ─── TOP-RIGHT: Minimap ──────────────────────────────────────────────
         Positioned(
-          bottom: 16,
+          top: 16,
           right: 16,
           child: BlocBuilder<WorldBloc, WorldState>(
             builder: (context, state) {
-              return MiniMap(state: state, size: 150);
+              return MiniMap(state: state, size: 120);
             },
           ),
         ),
 
-        // Game Over Overlay
-        BlocBuilder<WorldBloc, WorldState>(
-          buildWhen: (previous, current) =>
-              previous.isPlayerDead != current.isPlayerDead,
-          builder: (context, state) {
-            if (state.isPlayerDead) {
-              return Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red, width: 4),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'YOU DIED',
-                        style: TextStyle(
-                          color: Colors.red,
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 4.0,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Press R to Restart', // Input handling for restart needs to be implemented
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
+        // ─── TOP-RIGHT: Compact Ammo (below minimap) ─────────────────────────
+        Positioned(
+          top: 144, // 16 (top offset) + 120 (minimap size) + 8 (gap)
+          right: 16,
+          child: _AmmoDisplay(),
+        ),
+
+        // ─── CENTER: Crosshair ───────────────────────────────────────────────
+        const Center(
+          child: _Crosshair(),
         ),
       ],
     );
@@ -316,7 +279,7 @@ class _HealthDisplay extends StatelessWidget {
   }
 }
 
-/// Ammo counter display
+/// Ammo counter display — compact version
 class _AmmoDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -327,7 +290,7 @@ class _AmmoDisplay extends StatelessWidget {
         final isLow = ammo <= maxAmmo * 0.3;
 
         return Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(8),
@@ -335,7 +298,7 @@ class _AmmoDisplay extends StatelessWidget {
               color: isLow
                   ? Colors.orange.withValues(alpha: 0.5)
                   : Colors.cyan.withValues(alpha: 0.5),
-              width: 2,
+              width: 1.5,
             ),
           ),
           child: Column(
@@ -346,12 +309,12 @@ class _AmmoDisplay extends StatelessWidget {
                 state.currentWeapon.name.toUpperCase(),
                 style: TextStyle(
                   color: Colors.cyan.shade300,
-                  fontSize: 12,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
+                  letterSpacing: 1.2,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -361,24 +324,24 @@ class _AmmoDisplay extends StatelessWidget {
                     '$ammo',
                     style: TextStyle(
                       color: isLow ? Colors.orange : Colors.white,
-                      fontSize: 32,
+                      fontSize: 22,
                       fontWeight: FontWeight.bold,
                       shadows: [
                         Shadow(
                           color: isLow
                               ? Colors.orange.withValues(alpha: 0.8)
                               : Colors.cyan.withValues(alpha: 0.5),
-                          blurRadius: 8,
+                          blurRadius: 6,
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 3),
                   Text(
                     '/ $maxAmmo',
                     style: TextStyle(
                       color: Colors.grey.shade400,
-                      fontSize: 16,
+                      fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -386,14 +349,14 @@ class _AmmoDisplay extends StatelessWidget {
               ),
               if (isLow)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 2),
                   child: Text(
                     'LOW AMMO',
                     style: TextStyle(
                       color: Colors.orange.shade400,
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.0,
                     ),
                   ),
                 ),

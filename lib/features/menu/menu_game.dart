@@ -87,8 +87,8 @@ class MenuGame extends FlameGame with KeyboardEvents {
     );
     await add(titleComponent);
 
-    // Menu starts in the lower section of the screen
-    final menuZoneTop = screenH * 0.65;
+    // Menu starts higher to avoid the bottom button getting cut off
+    final menuZoneTop = screenH * 0.55;
     final itemCount = MenuState.labels.length;
 
     // Spacing is fixed proportional relative to screen height to prevent huge gaps
