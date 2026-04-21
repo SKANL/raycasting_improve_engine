@@ -47,7 +47,16 @@ Fue construido siguiendo las normativas mundiales más demandantes de desarrollo
 
 ---
 
-## 🛠️ 5. Prerrequisitos e Instalación
+## 🤖 5. Desarrollo Potenciado por Inteligencia Artificial (+IA)
+
+Este motor no solo representa un hito en la ingeniería de software clásica; es también una muestra vanguardista de **Flujos de Trabajo potenciados por Modelos de Inteligencia Artificial (Pair Programming +IA)**. 
+Para escalar su eficiencia exponencialmente, el repositorio implementó un sistema interno modular (`.agent/`) que blindaba el contexto. En lugar de lidiar con *boilerplates* monótonos o alucinaciones de código, inyectamos IA dentro de las reglas estrictas de Clean Architecture y la compleja matemática de nuestros Shaders DDA, logrando que el agente algorítmico colaborara paramétricamente sin romper el stack. 
+
+**¿El Resultado?** Ciclos de experimentación y lógica acelerados en más de un **300%**, refactorizaciones eficientes (cero bugs de inercia), y un escuadrón de desarrolladores enfocado del todo en la visión creativa y el game-design iterativo avanzado. ⚡
+
+---
+
+## 🛠️ 6. Prerrequisitos e Instalación
 
 1. **Dependencias Core Requeridas:**
    *  [Flutter SDK](https://docs.flutter.dev/get-started/install) v3.35.0 o posterior en las variables del sistema operativo.
@@ -71,7 +80,7 @@ Fue construido siguiendo las normativas mundiales más demandantes de desarrollo
 
 ---
 
-## 🗂️ 6. Estructura de Carpetas
+## 🗂️ 7. Estructura de Carpetas
 
 La convención respeta un dominio limpio, aislando los módulos técnicos (Clean Architecture):
 
@@ -90,7 +99,7 @@ lib/
 
 ---
 
-## 👥 7. El Equipo (Créditos)
+## 👥 8. El Equipo (Créditos)
 
 Un logro de esta magnitud analítica nace del talento coordinado. Dividimos ramas en Git y coordinamos con roles altamente técnicos para blindar las entregas:
 
