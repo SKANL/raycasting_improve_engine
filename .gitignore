@@ -113,3 +113,8 @@ app.*.map.json
 
 # Generated l10n files
 lib/l10n/gen/
+
+# Local debug / analysis output
+test_output.txt
+analyze_output.txt
+*_output.txt
